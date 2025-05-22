@@ -3,7 +3,11 @@ using UnityEngine;
 
 public class CameraController : NetworkBehaviour
 {
-    Camera mainCamera;
+    private Vector3 defaultRotation;
+    private Camera mainCamera;
+
+    [SerializeField]
+    private float tiltAmount = 5f; // intensidade da rotação
 
     public override void OnNetworkSpawn()
     {
@@ -35,6 +39,44 @@ public class CameraController : NetworkBehaviour
 
         Debug.Log(
             $"[CameraController] Câmera ativa para ClientId={OwnerClientId}, LocalClientId={NetworkManager.Singleton.LocalClientId}"
+        );
+    }
+
+    void Start()
+    {
+        defaultRotation = GetComponent<Camera>().transform.rotation.eulerAngles;
+        mainCamera = GetComponent<Camera>();
+        if (mainCamera == null)
+        {
+            Debug.LogError("Camera not found on this GameObject.");
+            return;
+        }
+    }
+
+    void Update()
+    {
+        if (!IsOwner)
+            return; // Only the owner can control the camera
+
+        Vector2 screenCenter = new Vector2(Screen.width / 2f, Screen.height / 2f);
+        Vector2 mouseDelta = (Vector2)Input.mousePosition - screenCenter;
+        Vector2 normalizedDelta = new Vector2(
+            Mathf.Clamp(mouseDelta.x / screenCenter.x, -1f, 1f),
+            Mathf.Clamp(mouseDelta.y / screenCenter.y, -1f, 1f)
+        );
+
+        float yaw = normalizedDelta.x * tiltAmount;
+        float pitch = -normalizedDelta.y * tiltAmount;
+
+        Quaternion targetRotation = Quaternion.Euler(
+            defaultRotation.x + pitch,
+            defaultRotation.y + yaw,
+            0
+        );
+        mainCamera.transform.rotation = Quaternion.Lerp(
+            mainCamera.transform.rotation,
+            targetRotation,
+            Time.deltaTime * 5f
         );
     }
 }
