@@ -30,10 +30,10 @@ exports.login = async (req, res) => {
       return res.status(401).json({ error: 'Credenciais inválidas!' });
     }
 
-    // Gerar token JWT
     const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, { expiresIn: '1h' });
     res.json({ token, userId: user._id, globalScore: user.globalScore });
   } catch (error) {
-    res.status(500).json({ error: 'Erro no login' });
+    console.error(error);  // loga no terminal o erro completo
+    res.status(500).json({ error: error.message || 'Erro no login' });
   }
 };
