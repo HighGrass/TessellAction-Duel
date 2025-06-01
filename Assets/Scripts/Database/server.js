@@ -17,7 +17,8 @@ app.use(express.json());
 app.use(rateLimit({ windowMs: 15 * 60 * 1000, max: 100 }));
 
 // Conectar ao MongoDB
-mongoose.connect(process.env.MONGODB_URI)
+
+mongoose.connect(process.env.MONGODB_URL)
     .then(() => console.log('Conectado ao MongoDB Atlas'))
     .catch(err => console.error('Erro de conexão:', err));
 
