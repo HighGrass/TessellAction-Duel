@@ -1,4 +1,3 @@
-using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using Fusion;
@@ -13,7 +12,7 @@ public class Piece : NetworkBehaviour
     private Material defaultMaterial;
 
     [SerializeField]
-    private int ownerId = -1; // No owner by default
+    private int ownerId = -1;
     private bool isInteractable = false;
     public bool IsInteractable
     {
@@ -23,60 +22,65 @@ public class Piece : NetworkBehaviour
 
     private List<Piece> neighbors = new List<Piece>();
     public List<Piece> Neighbors => neighbors;
+
     TurnManager turnManager;
+    private Renderer pieceRenderer;
+
+    [Networked]
+    private Vector3 netPosition { get; set; }
+
+    [Networked]
+    private int MaterialIndex { get; set; }
 
     public int OwnerId
     {
         get => ownerId;
-        set { ownerId = value; }
+        set => ownerId = value;
     }
 
-    void Start()
+    public override void Spawned()
     {
+        originalPosition = transform.position;
+        pieceRenderer = GetComponentInChildren<Renderer>();
+        defaultMaterial = pieceRenderer.material;
+
         turnManager = FindObjectOfType<TurnManager>();
-        defaultMaterial = GetComponentInChildren<Renderer>().material;
-        OwnerId = ownerId; // Initialize values set on editor
 
         if (ownerId > -1)
-            isInteractable = true; // All initial player pieces are interactable
+            isInteractable = true;
 
         neighbors = Physics
-            .OverlapSphere(transform.position, 1, LayerMask.GetMask("Piece"))
+            .OverlapSphere(transform.position, 1f, LayerMask.GetMask("Piece"))
             .Select(hit => hit.GetComponent<Piece>())
             .Where(piece => piece != null && piece != this)
             .ToList();
-    }
 
-    // Networked position variable
-    [Networked]
-    private Vector3 netPosition { get; set; }
-
-    private Renderer renderer;
-
-    public override void OnNetworkSpawn()
-    {
-        originalPosition = transform.position;
-        renderer = GetComponent<Renderer>();
-
-        // Sync initial position
-        if (IsServer)
-            netPosition.Value = originalPosition;
-
-        netPosition.OnValueChanged += (oldPos, newPos) =>
-        {
-            transform.position = newPos;
-        };
+        // Sync initial networked position
+        if (Object.HasStateAuthority)
+            netPosition = transform.position;
 
         SetCorrectColor();
     }
 
+    public override void FixedUpdateNetwork()
+    {
+        transform.position = netPosition;
+
+        // Apply material if index is valid
+        if (MaterialIndex >= 0 && MaterialIndex < PlayerMaterials.PiecesMaterials.Count)
+        {
+            pieceRenderer.material = PlayerMaterials.PiecesMaterials[MaterialIndex];
+        }
+    }
+
     public void SetHovered(bool hovered)
     {
-        if (isSelected)
+        if (isSelected || !isInteractable)
             return;
 
         if (hovered == isHovered)
             return;
+
         isHovered = hovered;
         Vector3 targetPosition = originalPosition + (isHovered ? Vector3.up * 0.2f : Vector3.zero);
         RequestMoveServerRpc(targetPosition);
@@ -84,15 +88,14 @@ public class Piece : NetworkBehaviour
 
     public void SetSelected(bool selected)
     {
-        if (selected == isSelected)
+        if (!isInteractable || selected == isSelected)
             return;
+
         isSelected = selected;
         Vector3 targetPosition = originalPosition + (isSelected ? Vector3.up * 0.5f : Vector3.zero);
         RequestMoveServerRpc(targetPosition);
 
-        Player[] players = FindObjectsOfType<Player>();
-
-        Player currentPlayer = players[turnManager.CurrentTurnIndex];
+        Player currentPlayer = FindObjectsOfType<Player>()[turnManager.CurrentTurnIndex];
 
         foreach (Piece piece in GetPossibleMoves())
         {
@@ -111,75 +114,77 @@ public class Piece : NetworkBehaviour
 
     public List<Piece> GetPossibleMoves()
     {
-        List<Piece> possibleMoves = new List<Piece>();
+        List<Piece> possibleMoves = new();
+
         foreach (Piece piece in neighbors)
         {
             if (piece.OwnerId < 0)
                 possibleMoves.Add(piece);
-            else if (piece.OwnerId > -1 && piece.OwnerId != OwnerId) // Enemy piece
+            else if (piece.OwnerId != OwnerId)
             {
-                Vector3 difference = piece.originalPosition - originalPosition;
-                Piece[] backPieces = FindPiecesByPosition(
-                        piece.originalPosition + difference + new Vector3(0, 0.5f, 0)
-                    // offset vector to make sure we collide with the back piece
+                Vector3 diff = piece.originalPosition - originalPosition;
+                var backPieces = FindPiecesByPosition(
+                        piece.originalPosition + diff + new Vector3(0, 0.5f, 0)
                     )
-                    .Where(piece => piece.OwnerId < 0)
-                    .ToArray(); // should always be 1 only
+                    .Where(p => p.OwnerId < 0)
+                    .ToList();
 
-                foreach (Piece backPiece in backPieces)
-                    possibleMoves.Add(backPiece);
+                possibleMoves.AddRange(backPieces);
             }
         }
-        Debug.Log(possibleMoves.Count + " possible moves");
+
+        Debug.Log($"{possibleMoves.Count} possible moves");
         return possibleMoves;
     }
 
     private List<Piece> FindPiecesByPosition(Vector3 pos, float radius = 0.8f)
     {
-        Collider[] hitColliders = Physics.OverlapSphere(pos, radius, LayerMask.GetMask("Piece"));
-        return hitColliders
+        return Physics
+            .OverlapSphere(pos, radius, LayerMask.GetMask("Piece"))
             .Select(hit => hit.GetComponent<Piece>())
-            .Where(piece => piece != null && piece != this)
+            .Where(p => p != null && p != this)
             .ToList();
     }
 
-    [Rpc(RpcSources.All, RpcTargets.All)]
+    [Rpc(RpcSources.InputAuthority, RpcTargets.StateAuthority)]
     public void RequestMoveServerRpc(Vector3 newPosition)
     {
-        transform.position = newPosition;
-    }
+        if (!Object.HasStateAuthority)
+            return;
 
-    private void ChangeServerMaterial(Material material)
-    {
-        // Server updates the networked material
-        int materialIndex = PlayerMaterials.PiecesMaterials.FindIndex(mat => mat == material);
-        Debug.LogWarning("materialIndex: " + materialIndex);
+        netPosition = newPosition;
     }
 
     public void HighlightPiece(bool highlight)
     {
-        if (highlight)
-            ChangeServerMaterial(PlayerMaterials.PossibleMoveMaterial);
-        else
-            SetCorrectColor();
+        ChangeServerMaterial(
+            highlight ? PlayerMaterials.PossibleMoveMaterial : GetCorrectMaterial()
+        );
+    }
+
+    private void ChangeServerMaterial(Material material)
+    {
+        int index = PlayerMaterials.PiecesMaterials.IndexOf(material);
+        if (index >= 0)
+            MaterialIndex = index;
     }
 
     public void SetCorrectColor()
     {
-        Material newMaterial;
-        if (OwnerId == 0)
-            if (IsInteractable)
-                newMaterial = PlayerMaterials.RedPlayerMaterial;
-            else
-                newMaterial = PlayerMaterials.RedPlayerInactiveMaterial;
-        else if (OwnerId == 1)
-            if (IsInteractable)
-                newMaterial = PlayerMaterials.BluePlayerMaterial;
-            else
-                newMaterial = PlayerMaterials.BluePlayerInactiveMaterial;
-        else
-            newMaterial = defaultMaterial; // Default color
+        ChangeServerMaterial(GetCorrectMaterial());
+    }
 
-        ChangeServerMaterial(newMaterial);
+    private Material GetCorrectMaterial()
+    {
+        if (OwnerId == 0)
+            return IsInteractable
+                ? PlayerMaterials.RedPlayerMaterial
+                : PlayerMaterials.RedPlayerInactiveMaterial;
+        else if (OwnerId == 1)
+            return IsInteractable
+                ? PlayerMaterials.BluePlayerMaterial
+                : PlayerMaterials.BluePlayerInactiveMaterial;
+        else
+            return defaultMaterial;
     }
 }
