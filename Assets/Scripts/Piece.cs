@@ -1,7 +1,7 @@
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
-using Unity.Netcode;
+using Fusion;
 using UnityEngine;
 
 public class Piece : NetworkBehaviour
@@ -48,15 +48,9 @@ public class Piece : NetworkBehaviour
     }
 
     // Networked position variable
-    private NetworkVariable<Vector3> netPosition = new NetworkVariable<Vector3>(
-        writePerm: NetworkVariableWritePermission.Server,
-        readPerm: NetworkVariableReadPermission.Everyone
-    );
+    [Networked]
+    private Vector3 netPosition { get; set; }
 
-    private NetworkVariable<Material> netMaterial = new NetworkVariable<Material>(
-        writePerm: NetworkVariableWritePermission.Server,
-        readPerm: NetworkVariableReadPermission.Everyone
-    );
     private Renderer renderer;
 
     public override void OnNetworkSpawn()
@@ -71,10 +65,6 @@ public class Piece : NetworkBehaviour
         netPosition.OnValueChanged += (oldPos, newPos) =>
         {
             transform.position = newPos;
-        };
-        netMaterial.OnValueChanged += (oldMat, newMat) =>
-        {
-            renderer.material = newMat;
         };
 
         SetCorrectColor();
@@ -153,11 +143,10 @@ public class Piece : NetworkBehaviour
             .ToList();
     }
 
-    [ServerRpc(RequireOwnership = false)]
-    public void RequestMoveServerRpc(Vector3 targetPosition, ServerRpcParams rpcParams = default)
+    [Rpc(RpcSources.All, RpcTargets.All)]
+    public void RequestMoveServerRpc(Vector3 newPosition)
     {
-        // Server updates the networked position
-        netPosition.Value = targetPosition;
+        transform.position = newPosition;
     }
 
     private void ChangeServerMaterial(Material material)
@@ -165,14 +154,6 @@ public class Piece : NetworkBehaviour
         // Server updates the networked material
         int materialIndex = PlayerMaterials.PiecesMaterials.FindIndex(mat => mat == material);
         Debug.LogWarning("materialIndex: " + materialIndex);
-        RequestMaterialServerRpc(materialIndex);
-    }
-
-    [ServerRpc(RequireOwnership = false)]
-    public void RequestMaterialServerRpc(int materialId, ServerRpcParams rpcParams = default)
-    {
-        // Server updates the networked material
-        netMaterial.Value = PlayerMaterials.RedPlayerMaterial;
     }
 
     public void HighlightPiece(bool highlight)
