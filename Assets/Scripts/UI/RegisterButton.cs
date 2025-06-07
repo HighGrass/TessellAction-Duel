@@ -25,9 +25,6 @@ public class RegisterButton : MonoBehaviour
     [SerializeField]
     Color buttonDisabledColor = new Color(0.5f, 0.5f, 0.5f, 1f);
 
-    [SerializeField]
-    AuthManager authManager;
-
     // Start is called before the first frame update
     void Start()
     {
@@ -56,6 +53,6 @@ public class RegisterButton : MonoBehaviour
     public void TryRegister()
     {
         Debug.Log("A tentar registar com o nome de utilizador: " + usernameInputField.text);
-        authManager.Register(usernameInputField.text, passwordInputField.text);
+        AuthManager.Instance.Register(usernameInputField.text, passwordInputField.text);
     }
 }

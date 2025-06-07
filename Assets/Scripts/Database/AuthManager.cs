@@ -95,6 +95,9 @@ public class AuthManager : MonoBehaviour
                 Debug.LogError(
                     "Token era válido, mas falhou ao obter o perfil: " + profileRequest.error
                 );
+                ErrorMessageManager.Instance.ShowError(
+                    "Falha ao carregar o perfil. Verifique a sua ligação."
+                );
                 File.Delete(savePath);
             }
         }
@@ -152,7 +155,27 @@ public class AuthManager : MonoBehaviour
         }
         else
         {
-            Debug.LogError("Erro: " + request.error);
+            string responseText = request.downloadHandler.text;
+            string errorMessage = "Login falhou: Credenciais inválidas ou falha de rede.";
+
+            if (!string.IsNullOrEmpty(responseText))
+            {
+                try
+                {
+                    ErrorResponse errorResponse = JsonUtility.FromJson<ErrorResponse>(responseText);
+                    if (!string.IsNullOrEmpty(errorResponse.error))
+                    {
+                        errorMessage = "Login falhou: " + errorResponse.error;
+                    }
+                }
+                catch
+                {
+                    // Se não conseguir, usa a mensagem padrão. Não faz mal.
+                }
+            }
+
+            ErrorMessageManager.Instance.ShowError(errorMessage);
+            Debug.LogError("Erro de Login: " + request.error);
         }
     }
 
@@ -208,6 +231,7 @@ public class AuthManager : MonoBehaviour
             {
                 errorMessage = "Erro no registo: " + request.error;
             }
+            ErrorMessageManager.Instance.ShowError(errorMessage);
             Debug.LogError(errorMessage);
         }
     }

@@ -25,9 +25,6 @@ public class LoginButton : MonoBehaviour
     [SerializeField]
     int minPasswordLength = 6;
 
-    [SerializeField]
-    AuthManager authManager;
-
     void Start() => button.interactable = false;
 
     void FixedUpdate()
@@ -50,6 +47,6 @@ public class LoginButton : MonoBehaviour
     public void TryLogin()
     {
         Debug.Log("Attempting to log in with username: " + usernameInputField.text);
-        authManager.Login(usernameInputField.text, passwordInputField.text);
+        AuthManager.Instance.Login(usernameInputField.text, passwordInputField.text);
     }
 }
