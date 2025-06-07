@@ -8,6 +8,8 @@ using UnityEngine.SceneManagement;
 
 public class AuthManager : MonoBehaviour
 {
+    public static AuthManager Instance { get; private set; }
+
     private string backendUrl = "https://tessellaction-backend.onrender.com";
     public static string AuthToken { get; private set; }
     public static string UserId { get; private set; }
@@ -28,6 +30,14 @@ public class AuthManager : MonoBehaviour
 
     private void Awake()
     {
+        if (Instance != null && Instance != this)
+        {
+            Destroy(gameObject);
+            return;
+        }
+        Instance = this;
+        DontDestroyOnLoad(gameObject);
+
         savePath = Path.Combine(Application.persistentDataPath, "auth.json");
 
         if (File.Exists(savePath))

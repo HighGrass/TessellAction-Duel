@@ -38,24 +38,24 @@ public class UserInfoUI : MonoBehaviour
     private void UpdateUI()
     {
         if (usernameText != null)
-            usernameText.text = $"Utilizador: {AuthManager.Username}";
+            usernameText.text = $"User: {AuthManager.Username}";
 
         if (scoreText != null)
-            scoreText.text = $"Pontuação Global: {AuthManager.GlobalScore}";
+            scoreText.text = $"Score: {AuthManager.GlobalScore}";
 
         if (gamesPlayedText != null)
-            gamesPlayedText.text = $"Jogos Jogados: {AuthManager.GamesPlayed}";
+            gamesPlayedText.text = $"Matches played: {AuthManager.GamesPlayed}";
 
         if (winRateText != null)
         {
             float winRatePercent = 0f;
-            
+
             if (AuthManager.GamesPlayed > 0)
             {
                 winRatePercent = ((float)AuthManager.GamesWon / AuthManager.GamesPlayed) * 100f;
             }
 
-            winRateText.text = $"Taxa de Vitória: {Mathf.FloorToInt(winRatePercent)}%";
+            winRateText.text = $"Win rate: {Mathf.FloorToInt(winRatePercent)}%";
         }
     }
 }
