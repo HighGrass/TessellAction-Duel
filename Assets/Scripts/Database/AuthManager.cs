@@ -46,16 +46,47 @@ public class AuthManager : MonoBehaviour
     private IEnumerator VerifyTokenCoroutine()
     {
         Debug.Log("A verificar token guardado...");
-        UnityWebRequest request = new UnityWebRequest(backendUrl + "/api/auth/verify", "POST");
-        request.SetRequestHeader("Authorization", "Bearer " + AuthToken);
-        request.downloadHandler = new DownloadHandlerBuffer();
+        UnityWebRequest verifyRequest = new UnityWebRequest(
+            backendUrl + "/api/auth/verify",
+            "POST"
+        );
+        verifyRequest.SetRequestHeader("Authorization", "Bearer " + AuthToken);
+        verifyRequest.downloadHandler = new DownloadHandlerBuffer();
 
-        yield return request.SendWebRequest();
+        yield return verifyRequest.SendWebRequest();
 
-        if (request.result == UnityWebRequest.Result.Success)
+        if (verifyRequest.result == UnityWebRequest.Result.Success)
         {
-            Debug.Log("Token válido. Login automático bem-sucedido!");
-            SceneManager.LoadScene("MatchmakingMenu");
+            Debug.Log("Token válido. A obter dados do perfil...");
+
+            UnityWebRequest profileRequest = UnityWebRequest.Get(backendUrl + "/api/auth/me");
+            profileRequest.SetRequestHeader("Authorization", "Bearer " + AuthToken);
+            profileRequest.downloadHandler = new DownloadHandlerBuffer();
+
+            yield return profileRequest.SendWebRequest();
+
+            if (profileRequest.result == UnityWebRequest.Result.Success)
+            {
+                Debug.Log("Perfil obtido com sucesso!");
+                var response = JsonUtility.FromJson<ProfileResponse>(
+                    profileRequest.downloadHandler.text
+                );
+
+                UserId = response.userId;
+                Username = response.username;
+                GlobalScore = response.globalScore;
+                GamesPlayed = response.gamesPlayed;
+                GamesWon = response.gamesWon;
+
+                SceneManager.LoadScene("MatchmakingMenu");
+            }
+            else
+            {
+                Debug.LogError(
+                    "Token era válido, mas falhou ao obter o perfil: " + profileRequest.error
+                );
+                File.Delete(savePath);
+            }
         }
         else
         {
@@ -176,6 +207,17 @@ public class AuthManager : MonoBehaviour
     {
         public string token;
         public string userId;
+        public string username;
+        public int globalScore;
+        public int gamesPlayed;
+        public int gamesWon;
+    }
+
+    [System.Serializable]
+    private class ProfileResponse
+    {
+        public string userId;
+        public string username;
         public int globalScore;
         public int gamesPlayed;
         public int gamesWon;

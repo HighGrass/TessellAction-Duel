@@ -14,7 +14,7 @@ public class UserInfoUI : MonoBehaviour
     private TMP_Text gamesPlayedText;
 
     [SerializeField]
-    private TMP_Text gamesWonText;
+    private TMP_Text winRateText;
 
     void Start()
     {
@@ -27,8 +27,8 @@ public class UserInfoUI : MonoBehaviour
                 scoreText.gameObject.SetActive(false);
             if (gamesPlayedText != null)
                 gamesPlayedText.gameObject.SetActive(false);
-            if (gamesWonText != null)
-                gamesWonText.gameObject.SetActive(false);
+            if (winRateText != null)
+                winRateText.gameObject.SetActive(false);
             return;
         }
 
@@ -38,13 +38,24 @@ public class UserInfoUI : MonoBehaviour
     private void UpdateUI()
     {
         if (usernameText != null)
-            usernameText.text = $"Username: {AuthManager.Username}";
+            usernameText.text = $"Utilizador: {AuthManager.Username}";
 
         if (scoreText != null)
-            scoreText.text = $"Score: {AuthManager.GlobalScore}";
+            scoreText.text = $"Pontuação Global: {AuthManager.GlobalScore}";
 
         if (gamesPlayedText != null)
-            gamesPlayedText.text =
-                $"Matches: {AuthManager.GamesPlayed} [{AuthManager.GamesPlayed - (AuthManager.GamesPlayed - AuthManager.GamesWon) / AuthManager.GamesPlayed}%]";
+            gamesPlayedText.text = $"Jogos Jogados: {AuthManager.GamesPlayed}";
+
+        if (winRateText != null)
+        {
+            float winRatePercent = 0f;
+            
+            if (AuthManager.GamesPlayed > 0)
+            {
+                winRatePercent = ((float)AuthManager.GamesWon / AuthManager.GamesPlayed) * 100f;
+            }
+
+            winRateText.text = $"Taxa de Vitória: {Mathf.FloorToInt(winRatePercent)}%";
+        }
     }
 }
