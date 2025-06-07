@@ -3,7 +3,6 @@ using System.Linq;
 using Photon.Pun;
 using UnityEngine;
 
-// Adicione este enum no topo, dentro ou fora da classe Piece
 public enum InitialOwnerType
 {
     None,
@@ -13,7 +12,6 @@ public enum InitialOwnerType
 
 public class Piece : MonoBehaviourPun, IPunObservable
 {
-    // --- Configuração Inicial (visível no Inspector) ---
     [Header("Initial Setup")]
     [Tooltip(
         "Define o dono inicial desta peça. Player1 é o MasterClient, Player2 é o segundo jogador."
@@ -25,28 +23,25 @@ public class Piece : MonoBehaviourPun, IPunObservable
     [SerializeField]
     private bool startsInteractable = true;
 
-    // Propriedade pública para que o GameManager possa ler a configuração inicial
     public InitialOwnerType InitialOwner => initialOwner;
     public bool StartsInteractable => startsInteractable;
 
     // --- Propriedades Locais e de Referência ---
-    private Vector3 visualOffsetPosition; // Usado para hover e seleção local, relativo à currentPosition
+    private Vector3 visualOffsetPosition;
     private bool isHovered = false;
     private bool isSelected = false;
-    public bool IsSelected => isSelected; // Apenas leitura, para uso local do Player
+    public bool IsSelected => isSelected;
 
     private Material defaultMaterial;
     private Renderer pieceRenderer;
     private List<Piece> neighbors = new List<Piece>();
     public List<Piece> Neighbors => neighbors;
 
-    // --- Estado Sincronizado via IPunObservable ---
     public Vector3 CurrentPosition { get; private set; }
-    private int ownerIdInternal = -1; // ActorNumber do Photon. -1 se não tiver dono.
+    private int ownerIdInternal = -1;
     private bool isInteractableInternal = false;
-    private int currentMaterialID = -1; // Usaremos um ID para o material para simplificar
+    private int currentMaterialID = -1;
 
-    // --- Propriedades Públicas para Estado Lógico (controladas via RPCs) ---
     public int OwnerId => ownerIdInternal;
     public bool IsInteractable => isInteractableInternal;
 
@@ -66,7 +61,6 @@ public class Piece : MonoBehaviourPun, IPunObservable
 
     void Start()
     {
-        // A lógica de autoconfiguração acontece aqui.
         // Apenas o MasterClient tem a autoridade para definir o estado inicial do tabuleiro.
         if (PhotonNetwork.IsMasterClient)
         {
@@ -76,7 +70,6 @@ public class Piece : MonoBehaviourPun, IPunObservable
 
             if (PhotonNetwork.CurrentRoom.PlayerCount >= 2)
             {
-                // CORREÇÃO AQUI: A variável é do tipo Photon.Realtime.Player
                 Photon.Realtime.Player otherPlayer = PhotonNetwork.PlayerListOthers[0];
                 switch (initialOwner)
                 {
@@ -84,7 +77,6 @@ public class Piece : MonoBehaviourPun, IPunObservable
                         targetOwnerId = PhotonNetwork.MasterClient.ActorNumber;
                         break;
                     case InitialOwnerType.Player2_Client:
-                        // Agora isto funciona, porque otherPlayer é do tipo correto e tem ActorNumber
                         targetOwnerId = otherPlayer.ActorNumber;
                         break;
                     case InitialOwnerType.None:
@@ -95,7 +87,7 @@ public class Piece : MonoBehaviourPun, IPunObservable
                 }
             }
             else
-            { // Se a sala não estiver cheia, define tudo como neutro por enquanto.
+            {
                 targetOwnerId = -1;
                 isInteractable = false;
             }
@@ -103,26 +95,21 @@ public class Piece : MonoBehaviourPun, IPunObservable
             Debug.Log(
                 $"MasterClient a configurar a peça {gameObject.name}. Dono alvo: {targetOwnerId}"
             );
-            // Usa o método SetOwnerState para enviar um RPC que sincroniza este estado.
             SetOwnerState(targetOwnerId, isInteractable);
         }
 
-        // A posição inicial é definida quando a peça é instanciada e movida para o seu lugar.
-        // currentPosition será sincronizada.
-        // Se este cliente instanciar (MasterClient), ele definirá currentPosition.
         if (photonView.IsMine)
-        { // Geralmente o MasterClient ao configurar o tabuleiro
+        {
             CurrentPosition = transform.position;
         }
-        // Os vizinhos são calculados localmente e podem precisar ser recalculados se as peças se moverem de forma complexa.
         CalculateNeighbors();
         ApplyMaterial(); // Aplica o material inicial com base no estado sincronizado
     }
 
     void CalculateNeighbors()
     {
-        // RAIO CORRIGIDO PARA 1.5f PARA DETETAR VIZINHOS NA DIAGONAL DE FORMA FIÁVEL.
-        neighbors = Physics.OverlapSphere(transform.position, 1.5f, LayerMask.GetMask("Piece"))
+        neighbors = Physics
+            .OverlapSphere(transform.position, 1.5f, LayerMask.GetMask("Piece"))
             .Select(hit => hit.GetComponent<Piece>())
             .Where(p => p != null && p != this)
             .ToList();
@@ -154,9 +141,7 @@ public class Piece : MonoBehaviourPun, IPunObservable
     {
         if (photonView == null)
         {
-            Debug.LogError(
-                $"PhotonView é NULO no GameObject: {gameObject.name}."
-            );
+            Debug.LogError($"PhotonView é NULO no GameObject: {gameObject.name}.");
             enabled = false;
             return;
         }
@@ -203,10 +188,8 @@ public class Piece : MonoBehaviourPun, IPunObservable
         }
     }
 
-    private Player GetLocalPlayer()
-    =>
-         FindObjectsOfType<Player>().FirstOrDefault(p => p.photonView.IsMine);
-
+    private Player GetLocalPlayer() =>
+        FindObjectsOfType<Player>().FirstOrDefault(p => p.photonView.IsMine);
 
     private void ClearPossibleMoveHighlights(Player player)
     {
@@ -232,19 +215,17 @@ public class Piece : MonoBehaviourPun, IPunObservable
         }
     }
 
-    // Chamado localmente por outra peça para destacar/remover destaque como um movimento possível
     public void HighlightPieceVisual(bool state)
     {
-        if (pieceRenderer == null) return;
+        if (pieceRenderer == null)
+            return;
 
         if (state)
         {
-
             pieceRenderer.material = PlayerMaterials.PossibleMoveMaterial;
         }
         else
         {
-
             ApplyMaterial();
         }
     }
@@ -260,22 +241,23 @@ public class Piece : MonoBehaviourPun, IPunObservable
             {
                 possibleMoves.Add(neighbor);
             }
+            // Lógica de Salto (Captura)
             else if (neighbor.OwnerId != this.OwnerId)
             {
                 Vector3 jumpDirection = (
-                  neighbor.transform.position - this.transform.position
-              ).normalized;
+                    neighbor.CurrentPosition - this.CurrentPosition
+                ).normalized;
 
                 foreach (Piece landingSpot in neighbor.Neighbors)
                 {
                     Vector3 landingDirection = (
-                       landingSpot.transform.position - neighbor.transform.position
-                   ).normalized;
+                        landingSpot.CurrentPosition - neighbor.CurrentPosition
+                    ).normalized;
 
                     if (
-                   Vector3.Dot(jumpDirection, landingDirection) > 0.95f
-                   && (landingSpot.OwnerId == -1 || !landingSpot.IsInteractable)
-               )
+                        Vector3.Dot(jumpDirection, landingDirection) > 0.95f
+                        && (landingSpot.OwnerId == -1 || !landingSpot.IsInteractable)
+                    )
                     {
                         possibleMoves.Add(landingSpot);
                     }
@@ -287,12 +269,10 @@ public class Piece : MonoBehaviourPun, IPunObservable
 
     // --- RPCs para Modificar Estado Sincronizado ---
 
-    // Chamado pelo Player local quando quer mover esta peça (que ele controla: photonView.IsMine)
     public void RequestMove(Vector3 newTargetPosition)
     {
         if (photonView.IsMine)
         {
-            // O proprietário envia um RPC para todos atualizarem a posição
             photonView.RPC("ExecuteMoveRpc", RpcTarget.All, newTargetPosition);
         }
     }
@@ -300,30 +280,25 @@ public class Piece : MonoBehaviourPun, IPunObservable
     [PunRPC]
     private void ExecuteMoveRpc(Vector3 newPosition, PhotonMessageInfo info)
     {
-        
         CurrentPosition = newPosition;
         visualOffsetPosition = Vector3.zero; // Reseta offset visual após movimento
 
-       
         if (photonView.IsMine)
         {
             transform.position = CurrentPosition;
         }
-        
 
         Debug.Log(
             $"Peça {photonView.ViewID} movida para {newPosition} por Actor:{info.Sender?.ActorNumber}"
         );
     }
 
-    // Chamado pelo MasterClient (ou lógica de captura) para mudar o dono e estado da peça.
     public void SetOwnerState(int newOwnerActorNumber, bool newInteractable)
     {
-        
         int newMaterialId = CalculateMaterialID(newOwnerActorNumber, newInteractable);
         photonView.RPC(
             "UpdateOwnerStateRpc",
-            RpcTarget.AllBuffered,
+            RpcTarget.All,
             newOwnerActorNumber,
             newInteractable,
             newMaterialId
@@ -348,7 +323,7 @@ public class Piece : MonoBehaviourPun, IPunObservable
         isInteractableInternal = newInteractable;
         currentMaterialID = newMatId;
 
-        ApplyMaterial(); 
+        ApplyMaterial();
 
         if (PhotonNetwork.IsMasterClient || oldOwnerWasMine)
         {
@@ -419,7 +394,7 @@ public class Piece : MonoBehaviourPun, IPunObservable
         if (pieceRenderer == null)
             return;
 
-        Material materialToApply = defaultMaterial; // Por defeito
+        Material materialToApply = defaultMaterial;
 
         switch (currentMaterialID)
         {
@@ -429,13 +404,13 @@ public class Piece : MonoBehaviourPun, IPunObservable
             case 1:
                 materialToApply = PlayerMaterials.RedPlayerMaterial;
                 break;
-            case 2: 
+            case 2:
                 materialToApply = PlayerMaterials.RedPlayerInactiveMaterial;
                 break;
             case 3:
                 materialToApply = PlayerMaterials.BluePlayerMaterial;
                 break;
-            case 4: 
+            case 4:
                 materialToApply = PlayerMaterials.BluePlayerInactiveMaterial;
                 break;
             default:

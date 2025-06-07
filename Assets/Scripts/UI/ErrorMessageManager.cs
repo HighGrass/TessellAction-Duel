@@ -126,6 +126,9 @@ public class ErrorMessageManager : MonoBehaviour
         timer = 0f;
         while (timer < fadeOutDuration)
         {
+            if (!canvasGroup)
+                yield break;
+
             canvasGroup.alpha = Mathf.Lerp(1, 0, timer / fadeOutDuration);
             timer += Time.deltaTime;
             yield return null;

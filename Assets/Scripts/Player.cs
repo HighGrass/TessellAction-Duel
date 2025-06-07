@@ -1,6 +1,6 @@
 using System.Collections.Generic;
 using System.Linq;
-using Photon.Pun; 
+using Photon.Pun;
 using UnityEngine;
 
 public class Player : MonoBehaviourPun
@@ -63,11 +63,10 @@ public class Player : MonoBehaviourPun
             hoveredPiece = null;
         }
 
-        
         Piece pieceToHover = null;
         if (selectedPiece != null) // Modo de Movimento
         {
-            // 
+            //
             if (
                 pieceUnderMouse != null
                 && PossibleMoves != null
@@ -95,9 +94,11 @@ public class Player : MonoBehaviourPun
             hoveredPiece.SetHovered(true);
         }
     }
+
     private void HandleClick()
     {
-        if (!Input.GetMouseButtonDown(0)) return;
+        if (!Input.GetMouseButtonDown(0))
+            return;
 
         Ray ray = mainCamera.ScreenPointToRay(Input.mousePosition);
         Physics.Raycast(ray, out RaycastHit hit);
@@ -107,7 +108,11 @@ public class Player : MonoBehaviourPun
         if (selectedPiece == null)
         {
             // Clicou numa peça sua e válida para a selecionar.
-            if (clickedPiece != null && clickedPiece.OwnerId == LocalPlayerActorNumber && clickedPiece.IsInteractable)
+            if (
+                clickedPiece != null
+                && clickedPiece.OwnerId == LocalPlayerActorNumber
+                && clickedPiece.IsInteractable
+            )
             {
                 SelectNewPiece(clickedPiece);
             }
@@ -115,24 +120,26 @@ public class Player : MonoBehaviourPun
         // Uma peça já está selecionada.
         else
         {
-            if (clickedPiece != null && PossibleMoves != null && PossibleMoves.Contains(clickedPiece))
-
+            if (
+                clickedPiece != null
+                && PossibleMoves != null
+                && PossibleMoves.Contains(clickedPiece)
+            )
                 AttemptMove(selectedPiece, clickedPiece);
-
-            else if (clickedPiece != null && clickedPiece != selectedPiece && clickedPiece.OwnerId == LocalPlayerActorNumber && clickedPiece.IsInteractable)
-
+            else if (
+                clickedPiece != null
+                && clickedPiece != selectedPiece
+                && clickedPiece.OwnerId == LocalPlayerActorNumber
+                && clickedPiece.IsInteractable
+            )
                 SelectNewPiece(clickedPiece);
-
             else
-
                 DeselectCurrentPiece();
-
         }
     }
 
     private void SelectNewPiece(Piece piece)
     {
-        // Limpa a seleção anterior antes de selecionar a nova.
         if (selectedPiece != null)
         {
             selectedPiece.SetSelected(false);
@@ -146,7 +153,7 @@ public class Player : MonoBehaviourPun
     {
         if (selectedPiece != null)
         {
-            selectedPiece.SetSelected(false); // Isto vai limpar os destaques
+            selectedPiece.SetSelected(false);
             selectedPiece = null;
             PossibleMoves = null;
         }
@@ -162,7 +169,6 @@ public class Player : MonoBehaviourPun
             to.photonView.ViewID
         );
 
-        // Limpa o estado local imediatamente para dar feedback.
         DeselectCurrentPiece();
     }
 }
