@@ -67,6 +67,11 @@ public class AuthManager : MonoBehaviour
         StartCoroutine(LoginCoroutine(username, password));
     }
 
+    public void Register(string username, string password)
+    {
+        StartCoroutine(RegisterCoroutine(username, password));
+    }
+
     private IEnumerator LoginCoroutine(string username, string password)
     {
         string jsonBody = $"{{\"username\": \"{username}\", \"password\": \"{password}\"}}";
@@ -102,12 +107,70 @@ public class AuthManager : MonoBehaviour
         }
     }
 
+    private IEnumerator RegisterCoroutine(string username, string password)
+    {
+        string jsonBody = $"{{\"username\": \"{username}\", \"password\": \"{password}\"}}";
+        UnityWebRequest request = new UnityWebRequest(backendUrl + "/api/auth/register", "POST");
+        byte[] bodyRaw = System.Text.Encoding.UTF8.GetBytes(jsonBody);
+        request.uploadHandler = new UploadHandlerRaw(bodyRaw);
+        request.downloadHandler = new DownloadHandlerBuffer();
+        request.SetRequestHeader("Content-Type", "application/json");
+
+        yield return request.SendWebRequest();
+
+        if (request.result == UnityWebRequest.Result.Success)
+        {
+            Debug.Log("Registo bem-sucedido! A fazer login automaticamente...");
+
+            var response = JsonUtility.FromJson<LoginResponse>(request.downloadHandler.text);
+            AuthToken = response.token;
+            UserId = response.userId;
+
+            SavedAuthData dataToSave = new SavedAuthData { token = AuthToken, userId = UserId };
+            string json = JsonUtility.ToJson(dataToSave);
+            string encryptedJson = EncryptDecrypt(json);
+            File.WriteAllText(savePath, encryptedJson);
+
+            Debug.Log("Dados de login guardados. A carregar a cena de matchmaking...");
+            SceneManager.LoadScene("MatchmakingMenu");
+        }
+        else
+        {
+            string responseText = request.downloadHandler.text;
+            string errorMessage = "Erro desconhecido no registo.";
+
+            if (!string.IsNullOrEmpty(responseText))
+            {
+                try
+                {
+                    ErrorResponse errorResponse = JsonUtility.FromJson<ErrorResponse>(responseText);
+                    errorMessage = "Erro no registo: " + errorResponse.error;
+                }
+                catch
+                {
+                    errorMessage = "Erro no registo: " + request.error + " | " + responseText;
+                }
+            }
+            else
+            {
+                errorMessage = "Erro no registo: " + request.error;
+            }
+            Debug.LogError(errorMessage);
+        }
+    }
+
     [System.Serializable]
     private class LoginResponse
     {
         public string token;
         public string userId;
         public int globalScore;
+    }
+
+    [System.Serializable]
+    private class ErrorResponse
+    {
+        public string error;
     }
 
     private string EncryptDecrypt(string data)
