@@ -250,4 +250,24 @@ public class AuthManager : MonoBehaviour
 
         return result.ToString();
     }
+
+    public void LogOut()
+    {
+        Debug.Log("A iniciar o processo de logout...");
+
+        if (File.Exists(savePath))
+        {
+            File.Delete(savePath);
+            Debug.Log("Ficheiro de autenticação local apagado.");
+        }
+
+        AuthToken = null;
+        UserId = null;
+        Username = null;
+        GlobalScore = 0;
+        GamesPlayed = 0;
+        GamesWon = 0;
+
+        SceneManager.LoadScene("LoginMenu");
+    }
 }
