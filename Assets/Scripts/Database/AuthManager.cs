@@ -11,6 +11,10 @@ public class AuthManager : MonoBehaviour
     private string backendUrl = "https://tessellaction-backend.onrender.com";
     public static string AuthToken { get; private set; }
     public static string UserId { get; private set; }
+    public static string Username { get; private set; }
+    public static int GlobalScore { get; private set; }
+    public static int GamesPlayed { get; private set; }
+    public static int GamesWon { get; private set; }
 
     private string savePath;
     private string secretKey = "tesselactiongualter";
@@ -88,6 +92,10 @@ public class AuthManager : MonoBehaviour
             var response = JsonUtility.FromJson<LoginResponse>(request.downloadHandler.text);
             AuthToken = response.token;
             UserId = response.userId;
+            Username = username;
+            GlobalScore = response.globalScore;
+            GamesPlayed = response.gamesPlayed;
+            GamesWon = response.gamesWon;
             Debug.Log("Login bem-sucedido!");
 
             SavedAuthData dataToSave = new SavedAuthData { token = AuthToken, userId = UserId };
@@ -125,6 +133,10 @@ public class AuthManager : MonoBehaviour
             var response = JsonUtility.FromJson<LoginResponse>(request.downloadHandler.text);
             AuthToken = response.token;
             UserId = response.userId;
+            Username = username;
+            GlobalScore = response.globalScore;
+            GamesPlayed = response.gamesPlayed;
+            GamesWon = response.gamesWon;
 
             SavedAuthData dataToSave = new SavedAuthData { token = AuthToken, userId = UserId };
             string json = JsonUtility.ToJson(dataToSave);
@@ -165,6 +177,8 @@ public class AuthManager : MonoBehaviour
         public string token;
         public string userId;
         public int globalScore;
+        public int gamesPlayed;
+        public int gamesWon;
     }
 
     [System.Serializable]

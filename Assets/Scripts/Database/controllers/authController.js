@@ -11,14 +11,13 @@ exports.register = async (req, res) => {
       return res.status(400).json({ error: 'Nome já cadastrado!' });
     }
 
-    // CORREÇÃO: Fazer o hash da password antes de criar o novo utilizador
     const passwordHash = await bcrypt.hash(password, 10);
     const user = new User({ username, passwordHash });
     await user.save();
 
     // Gerar token JWT
     const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, { expiresIn: '1h' });
-    res.status(201).json({ token, userId: user._id });
+    res.status(201).json({ token, userId: user._id, globalScore: user.globalScore, gamesPlayed: user.gamesPlayed, gamesWon: user.gamesWon });
   } catch (error) {
     console.error("Erro detalhado no registo:", error);
     res.status(500).json({ error: 'Erro no registro' });
@@ -35,7 +34,7 @@ exports.login = async (req, res) => {
     }
 
     const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, { expiresIn: '1h' });
-    res.json({ token, userId: user._id, globalScore: user.globalScore });
+    res.json({ token, userId: user._id, globalScore: user.globalScore, gamesPlayed: user.gamesPlayed, gamesWon: user.gamesWon });
   } catch (error) {
     console.error(error);  
     res.status(500).json({ error: error.message || 'Erro no login' });

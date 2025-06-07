@@ -1,0 +1,50 @@
+using TMPro;
+using UnityEngine;
+
+public class UserInfoUI : MonoBehaviour
+{
+    [Header("UI Text Elements")]
+    [SerializeField]
+    private TMP_Text usernameText;
+
+    [SerializeField]
+    private TMP_Text scoreText;
+
+    [SerializeField]
+    private TMP_Text gamesPlayedText;
+
+    [SerializeField]
+    private TMP_Text gamesWonText;
+
+    void Start()
+    {
+        if (string.IsNullOrEmpty(AuthManager.Username))
+        {
+            Debug.LogWarning("UserInfoUI: Dados do utilizador não encontrados.");
+            if (usernameText != null)
+                usernameText.gameObject.SetActive(false);
+            if (scoreText != null)
+                scoreText.gameObject.SetActive(false);
+            if (gamesPlayedText != null)
+                gamesPlayedText.gameObject.SetActive(false);
+            if (gamesWonText != null)
+                gamesWonText.gameObject.SetActive(false);
+            return;
+        }
+
+        UpdateUI();
+    }
+
+    private void UpdateUI()
+    {
+        if (usernameText != null)
+            usernameText.text = $"Username: {AuthManager.Username}";
+
+        if (scoreText != null)
+            scoreText.text = $"Score: {AuthManager.GlobalScore}";
+
+        if (gamesPlayedText != null)
+            gamesPlayedText.text =
+                $"Matches: {AuthManager.GamesPlayed} [{AuthManager.GamesPlayed - (AuthManager.GamesPlayed - AuthManager.GamesWon) / AuthManager.GamesPlayed}%]";
+    }
+}

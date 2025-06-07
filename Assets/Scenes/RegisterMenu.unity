@@ -1719,9 +1719,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 66f7d068bf6953d4fbff404119e1f333, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  button: {fileID: 0}
+  button: {fileID: 1237740886}
   usernameInputField: {fileID: 359692480}
-  minUsernameLength: 3
+  minUsernameLength: 6
   passwordInputField: {fileID: 393529454}
   minPasswordLength: 6
   buttonText: {fileID: 959686601}
