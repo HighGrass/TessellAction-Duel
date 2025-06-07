@@ -236,6 +236,39 @@ public class AuthManager : MonoBehaviour
         }
     }
 
+    public void EnviarResultadoDeJogo(string resultado, int pontos)
+    {
+        StartCoroutine(AtualizarEstatisticas(resultado, pontos));
+    }
+
+    private IEnumerator AtualizarEstatisticas(string resultado, int pontos)
+    {
+        string jsonBody = $"{{\"result\":\"{resultado}\",\"score\":{pontos}}}";
+
+        UnityWebRequest request = new UnityWebRequest(backendUrl + "/api/auth/stats", "PUT");
+        byte[] bodyRaw = Encoding.UTF8.GetBytes(jsonBody);
+        request.uploadHandler = new UploadHandlerRaw(bodyRaw);
+        request.downloadHandler = new DownloadHandlerBuffer();
+        request.SetRequestHeader("Content-Type", "application/json");
+        request.SetRequestHeader("Authorization", "Bearer " + AuthToken);
+
+        yield return request.SendWebRequest();
+
+        if (request.result == UnityWebRequest.Result.Success)
+        {
+            Debug.Log("Estatísticas atualizadas com sucesso!");
+            // Se quiseres atualizar valores locais:
+            var response = JsonUtility.FromJson<LoginResponse>(request.downloadHandler.text);
+            GlobalScore = response.globalScore;
+            GamesPlayed = response.gamesPlayed;
+            GamesWon = response.gamesWon;
+        }
+        else
+        {
+            Debug.LogError("Erro ao atualizar estatísticas: " + request.downloadHandler.text);
+        }
+    }
+
     [System.Serializable]
     private class LoginResponse
     {

@@ -1,10 +1,24 @@
 using System.Linq;
 using Photon.Pun;
+using Photon.Realtime;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 
-public class TurnManager : MonoBehaviourPun
+public class TurnManager : MonoBehaviourPunCallbacks
 {
     public int CurrentTurnIndex { get; private set; } = -1;
+
+    public override void OnEnable()
+    {
+        base.OnEnable();
+        PhotonNetwork.AddCallbackTarget(this);
+    }
+
+    public override void OnDisable()
+    {
+        base.OnDisable();
+        PhotonNetwork.RemoveCallbackTarget(this);
+    }
 
     void Start()
     {
@@ -22,6 +36,30 @@ public class TurnManager : MonoBehaviourPun
     {
         CurrentTurnIndex = newTurnIndex;
         Debug.Log($"--- TURNO ATUALIZADO PARA JOGADOR: {CurrentTurnIndex} ---");
+    }
+
+    [PunRPC]
+    private int GetPlayerPieces(int playerActorNumber) =>
+        FindObjectsOfType<Piece>().Count(p => p.OwnerId == playerActorNumber && p.IsInteractable);
+
+    [PunRPC]
+    private void GameOverRpc()
+    {
+        Debug.Log("Fim de Jogo! A iniciar o processo de saída da sala...");
+        if (PhotonNetwork.InRoom)
+        {
+            PhotonNetwork.LeaveRoom();
+        }
+        else
+        {
+            SceneManager.LoadScene("MatchmakingMenu");
+        }
+    }
+
+    public override void OnLeftRoom()
+    {
+        Debug.Log("Saída da sala confirmada. A carregar o menu...");
+        SceneManager.LoadScene("MatchmakingMenu");
     }
 
     [PunRPC]
@@ -43,7 +81,6 @@ public class TurnManager : MonoBehaviourPun
             return;
         if (movingPiece.OwnerId != info.Sender.ActorNumber)
             return;
-
         if (!movingPiece.GetPossibleMoves().Contains(destinationPiece))
             return;
 
@@ -58,7 +95,6 @@ public class TurnManager : MonoBehaviourPun
             Vector3 moveDirection = (
                 destinationPiece.CurrentPosition - movingPiece.CurrentPosition
             ).normalized;
-
             foreach (Piece neighbor in movingPiece.Neighbors)
             {
                 if (neighbor.OwnerId != -1 && neighbor.OwnerId != movingPiece.OwnerId)
@@ -66,7 +102,6 @@ public class TurnManager : MonoBehaviourPun
                     Vector3 neighborDirection = (
                         neighbor.CurrentPosition - movingPiece.CurrentPosition
                     ).normalized;
-
                     if (Vector3.Dot(moveDirection, neighborDirection) > 0.95f)
                     {
                         capturedPiece = neighbor;
@@ -77,12 +112,29 @@ public class TurnManager : MonoBehaviourPun
 
             if (capturedPiece != null)
             {
+                int opponentId = capturedPiece.OwnerId;
+                int opponentPieceCount = GetPlayerPieces(opponentId);
+
                 capturedPiece.SetOwnerState(info.Sender.ActorNumber, false);
+
+                if (opponentPieceCount <= 1)
+                {
+                    Debug.Log($"FIM DE JOGO! Jogador {info.Sender.ActorNumber} venceu!");
+                    if (PhotonNetwork.LocalPlayer.ActorNumber == info.Sender.ActorNumber)
+                    {
+                        AuthManager.Instance.EnviarResultadoDeJogo("win", 50); // Exemplo de score
+                    }
+                    else
+                    {
+                        AuthManager.Instance.EnviarResultadoDeJogo("lose", 10); // Score alternativo
+                    }
+                    photonView.RPC("GameOverRpc", RpcTarget.All);
+                    return;
+                }
             }
         }
 
         destinationPiece.SetOwnerState(info.Sender.ActorNumber, true);
-
         movingPiece.SetOwnerState(info.Sender.ActorNumber, false);
 
         var otherPlayer = PhotonNetwork.CurrentRoom.Players.Values.FirstOrDefault(p =>

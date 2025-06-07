@@ -21,4 +21,7 @@ router.get('/me', authMiddleware, (req, res) => {
     });
 });
 
+router.put('/stats', authMiddleware, authController.updateStats);
+
+
 module.exports = router;

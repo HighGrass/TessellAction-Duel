@@ -46,6 +46,7 @@ MonoBehaviour:
   - SyncTurnRpc
   - SetTurnRpc
   - GameOverRpc
+  - GetPlayerPieces
   DisableAutoOpenWizard: 1
   ShowSettings: 1
   DevRegionSetOnce: 1

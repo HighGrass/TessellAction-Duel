@@ -1,9 +1,12 @@
 using System.Collections;
 using System.Collections.Generic;
+using Photon.Pun;
+using Photon.Realtime;
 using TMPro;
 using UnityEngine;
+using UnityEngine.UI;
 
-public class FindMatchButton : MonoBehaviour
+public class FindMatchButton : MonoBehaviourPunCallbacks
 {
     [SerializeField]
     TMP_Text buttonText;
@@ -14,10 +17,40 @@ public class FindMatchButton : MonoBehaviour
     [SerializeField]
     TimeCounter timeCounter;
 
-    [SerializeField]
     SimplePunLauncher punMatchmaking;
 
+    Button thisButton;
+
     bool searching = false;
+
+
+    void Start()
+    {
+        thisButton = GetComponent<Button>();
+
+        if (punMatchmaking == null)
+        {
+            punMatchmaking = FindObjectOfType<SimplePunLauncher>();
+            if (punMatchmaking == null)
+                Debug.LogWarning("SimplePunLauncher não encontrado na cena!");
+        }
+    }
+
+    public override void OnConnectedToMaster()
+    {
+        Debug.Log("Conectado ao Master Server.");
+
+        // Só entra no lobby se não estiver já entrando ou dentro dele
+        if (PhotonNetwork.NetworkClientState != ClientState.JoiningLobby && !PhotonNetwork.InLobby)
+        {
+            PhotonNetwork.JoinLobby();
+            Debug.Log("Tentando entrar no lobby...");
+        }
+        else
+        {
+            Debug.Log("Já está no lobby ou entrando.");
+        }
+    }
 
     void StartMatchSearch()
     {
@@ -39,9 +72,9 @@ public class FindMatchButton : MonoBehaviour
 
     public void ToggleMatchSearch()
     {
-        if (punMatchmaking == null || !punMatchmaking.IsInLobby)
+        if (punMatchmaking == null)
         {
-            Debug.LogWarning("Não é possível procurar partida. Ainda não está no lobby.");
+            Debug.LogWarning("Não é possível procurar partida.");
             return;
         }
 
@@ -50,5 +83,13 @@ public class FindMatchButton : MonoBehaviour
             StartMatchSearch();
         else
             StopMatchSearch();
+    }
+
+    void FixedUpdate()
+    {
+        if (PhotonNetwork.InLobby && !searching)
+            thisButton.interactable = true;
+        else if (!searching)
+            thisButton.interactable = false;
     }
 }

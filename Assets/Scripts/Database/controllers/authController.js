@@ -1,6 +1,7 @@
 const User = require('../models/User');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
+const { updateUserStats } = require('./updateUserStats');
 
 exports.register = async (req, res) => {
   try {
@@ -36,7 +37,40 @@ exports.login = async (req, res) => {
     const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, { expiresIn: '1h' });
     res.json({ token, userId: user._id, globalScore: user.globalScore, gamesPlayed: user.gamesPlayed, gamesWon: user.gamesWon });
   } catch (error) {
-    console.error(error);  
+    console.error(error);
     res.status(500).json({ error: error.message || 'Erro no login' });
   }
 };
+
+exports.updateStats = async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const { result, score } = req.body;
+
+    const globalScoreDelta = typeof score === 'number' ? score : 0;
+    const gamesPlayedDelta = 1;
+    const gamesWonDelta = result === 'win' ? 1 : 0;
+
+    const updateResult = await updateUserStats(userId, {
+      globalScoreDelta,
+      gamesPlayedDelta,
+      gamesWonDelta
+    });
+
+    if (updateResult.error) {
+      return res.status(400).json({ error: updateResult.error });
+    }
+
+    res.status(200).json({
+      userId: updateResult.user.userId,
+      globalScore: updateResult.user.globalScore,
+      gamesPlayed: updateResult.user.gamesPlayed,
+      gamesWon: updateResult.user.gamesWon
+    });
+  } catch (err) {
+    console.error('Erro na rota updateStats:', err);
+    res.status(500).json({ error: 'Erro ao atualizar estatísticas.' });
+  }
+};
+
+

@@ -1,3 +1,4 @@
+using System.Collections;
 using Photon.Pun;
 using Photon.Realtime;
 using UnityEngine;
@@ -25,22 +26,27 @@ public class SimplePunLauncher : MonoBehaviourPunCallbacks
         Instance = this;
         DontDestroyOnLoad(this.gameObject);
 
+        // Configurar AuthValues apenas uma vez, usando GUID como antes
         PhotonNetwork.AuthValues = new AuthenticationValues(System.Guid.NewGuid().ToString());
     }
 
     private void Start()
     {
         if (playerPrefab == null)
-        {
             Debug.LogError("Player Prefab não está atribuído no SimplePunLauncher!", this);
-        }
 
         PhotonNetwork.AutomaticallySyncScene = true;
+
         if (!PhotonNetwork.IsConnected)
         {
             IsInLobby = false;
             Debug.Log($"Conectando à Photon com UserId: {PhotonNetwork.AuthValues.UserId}");
             PhotonNetwork.ConnectUsingSettings();
+        }
+        else
+        {
+            Debug.Log("Já conectado à Photon. Tentando entrar no lobby...");
+            StartCoroutine(JoinLobbyWhenReady());
         }
     }
 
@@ -82,8 +88,27 @@ public class SimplePunLauncher : MonoBehaviourPunCallbacks
 
     public override void OnConnectedToMaster()
     {
-        Debug.Log($"Conectado ao Master Server. Juntando ao Lobby...");
-        PhotonNetwork.JoinLobby();
+        Debug.Log($"Conectado ao Master Server. Estado atual: {PhotonNetwork.NetworkClientState}");
+
+        if (!PhotonNetwork.InLobby)
+            StartCoroutine(JoinLobbyWhenReady());
+    }
+
+    private IEnumerator JoinLobbyWhenReady()
+    {
+        Debug.Log("A aguardar estado ConnectedAndReady antes de entrar no lobby...");
+
+        yield return new WaitUntil(() => PhotonNetwork.IsConnectedAndReady);
+
+        if (!PhotonNetwork.InLobby && PhotonNetwork.NetworkClientState != ClientState.JoiningLobby)
+        {
+            PhotonNetwork.JoinLobby();
+            Debug.Log("JoinLobby chamado com sucesso.");
+        }
+        else
+        {
+            Debug.Log("Já no lobby ou entrando. JoinLobby não necessário.");
+        }
     }
 
     public override void OnJoinedLobby()
@@ -99,12 +124,6 @@ public class SimplePunLauncher : MonoBehaviourPunCallbacks
         );
         IsInLobby = false;
         CheckForGameStart();
-    }
-
-    public override void OnLeftRoom()
-    {
-        Debug.Log("Saiu da sala de matchmaking.");
-        // Não precisamos de fazer nada especial aqui, mas o callback existe se necessário.
     }
 
     public override void OnPlayerEnteredRoom(Photon.Realtime.Player newPlayer)

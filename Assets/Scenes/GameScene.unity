@@ -1006,7 +1006,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 5325053292367188268, guid: b5f73f7c74a93da42899aa869566674c, type: 3}
       propertyPath: initialOwner
-      value: 2
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 7024897040287504956, guid: b5f73f7c74a93da42899aa869566674c, type: 3}
       propertyPath: m_Name
@@ -1876,7 +1876,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 5325053292367188268, guid: b5f73f7c74a93da42899aa869566674c, type: 3}
       propertyPath: initialOwner
-      value: 1
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 7024897040287504956, guid: b5f73f7c74a93da42899aa869566674c, type: 3}
       propertyPath: m_Name
@@ -2926,7 +2926,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 4fca23560786f07489a0cdf5c0ec582e, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  initialOwner: 1
+  initialOwner: 0
   startsInteractable: 1
 --- !u!1001 &1253696421
 PrefabInstance:
@@ -4999,7 +4999,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 5325053292367188268, guid: b5f73f7c74a93da42899aa869566674c, type: 3}
       propertyPath: initialOwner
-      value: 1
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 7024897040287504956, guid: b5f73f7c74a93da42899aa869566674c, type: 3}
       propertyPath: m_Name
@@ -5831,7 +5831,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 5325053292367188268, guid: b5f73f7c74a93da42899aa869566674c, type: 3}
       propertyPath: initialOwner
-      value: 2
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 7024897040287504956, guid: b5f73f7c74a93da42899aa869566674c, type: 3}
       propertyPath: m_Name
@@ -6163,7 +6163,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 5325053292367188268, guid: b5f73f7c74a93da42899aa869566674c, type: 3}
       propertyPath: initialOwner
-      value: 2
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 7024897040287504956, guid: b5f73f7c74a93da42899aa869566674c, type: 3}
       propertyPath: m_Name
@@ -6249,7 +6249,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 5325053292367188268, guid: b5f73f7c74a93da42899aa869566674c, type: 3}
       propertyPath: initialOwner
-      value: 2
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 7024897040287504956, guid: b5f73f7c74a93da42899aa869566674c, type: 3}
       propertyPath: m_Name
