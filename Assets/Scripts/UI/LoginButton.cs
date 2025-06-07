@@ -1,5 +1,3 @@
-using System.Collections;
-using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
@@ -19,6 +17,12 @@ public class LoginButton : MonoBehaviour
     TMP_InputField passwordInputField;
 
     [SerializeField]
+    TMP_Text buttonText;
+
+    [SerializeField]
+    Color buttonDisabledColor = new Color(0.5f, 0.5f, 0.5f, 1f);
+
+    [SerializeField]
     int minPasswordLength = 6;
 
     [SerializeField]
@@ -32,9 +36,15 @@ public class LoginButton : MonoBehaviour
             usernameInputField.text.Length >= minUsernameLength
             && passwordInputField.text.Length >= minPasswordLength
         )
+        {
             button.interactable = true;
+            buttonText.color = Color.white;
+        }
         else
+        {
+            buttonText.color = buttonDisabledColor;
             button.interactable = false;
+        }
     }
 
     public void TryLogin()

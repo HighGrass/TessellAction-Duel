@@ -9,9 +9,9 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 7153471094039400291}
-  - component: {fileID: 9059012234499510941}
   - component: {fileID: 5325053292367188268}
   - component: {fileID: 4102997377362744930}
+  - component: {fileID: 1198326982592902137}
   m_Layer: 6
   m_Name: NormalPiece
   m_TagString: Untagged
@@ -35,27 +35,6 @@ Transform:
   - {fileID: 2474289496694523739}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!114 &9059012234499510941
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 7024897040287504956}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: d5a57f767e5e46a458fc5d3c628d0cbb, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  GlobalObjectIdHash: 831979979
-  InScenePlacedSourceGlobalObjectIdHash: 0
-  AlwaysReplicateAsRoot: 0
-  SynchronizeTransform: 1
-  ActiveSceneSynchronization: 0
-  SceneMigrationSynchronization: 1
-  SpawnWithObservers: 1
-  DontDestroyWithOwner: 0
-  AutoObjectParentSync: 1
 --- !u!114 &5325053292367188268
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -68,7 +47,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 4fca23560786f07489a0cdf5c0ec582e, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  ownerId: -1
 --- !u!64 &4102997377362744930
 MeshCollider:
   m_ObjectHideFlags: 0
@@ -91,6 +69,29 @@ MeshCollider:
   m_Convex: 0
   m_CookingOptions: 30
   m_Mesh: {fileID: -2794067383335433913, guid: 2f6dc06924d1119478dcf61998190794, type: 3}
+--- !u!114 &1198326982592902137
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7024897040287504956}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: aa584fbee541324448dd18d8409c7a41, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  ObservedComponentsFoldoutOpen: 1
+  Group: 0
+  prefixField: -1
+  Synchronization: 3
+  OwnershipTransfer: 0
+  observableSearch: 2
+  ObservedComponents:
+  - {fileID: 5325053292367188268}
+  sceneViewId: 0
+  InstantiationId: 0
+  isRuntimeInstantiated: 0
 --- !u!1001 &2728275709050511536
 PrefabInstance:
   m_ObjectHideFlags: 0

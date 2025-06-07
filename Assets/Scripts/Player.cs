@@ -1,160 +1,168 @@
 using System.Collections.Generic;
 using System.Linq;
-using Unity.Netcode;
+using Photon.Pun; 
 using UnityEngine;
 
-public class Player : NetworkBehaviour
+public class Player : MonoBehaviourPun
 {
-    private Piece hoveredPiece;
     private Camera mainCamera;
     private TurnManager turnManager;
 
-    private Piece selectedPiece = null;
-    private Piece[] possibleMoves = null;
-    public Piece[] PossibleMoves
-    {
-        get => possibleMoves;
-        set => possibleMoves = value;
-    }
+    private Piece selectedPiece;
+    private Piece hoveredPiece;
 
-    public int ThisPlayerID => (int)NetworkManager.Singleton.LocalClientId;
-
-    public override void OnNetworkSpawn()
-    {
-        mainCamera = GetComponent<Camera>();
-        mainCamera?.gameObject.SetActive(true);
-    }
+    public Piece[] PossibleMoves { get; set; }
+    public int LocalPlayerActorNumber => PhotonNetwork.LocalPlayer.ActorNumber;
 
     void Start()
     {
-        turnManager = FindObjectOfType<TurnManager>();
-        if (turnManager == null)
+        mainCamera = GetComponentInChildren<Camera>();
+
+        if (!photonView.IsMine)
         {
-            Debug.LogError("TurnManager not found in the scene.");
+            if (mainCamera != null)
+                mainCamera.gameObject.SetActive(false);
+            enabled = false;
             return;
         }
+
+        turnManager = FindObjectOfType<TurnManager>();
     }
 
     void Update()
     {
-        if (!IsOwner)
-            return; // Only the owner can control the camera
-
-        if (turnManager.CurrentTurnIndex != (int)NetworkManager.Singleton.LocalClientId)
+        if (!photonView.IsMine || turnManager == null)
             return;
 
-        Ray ray = mainCamera.ScreenPointToRay(Input.mousePosition);
-        if (Physics.Raycast(ray, out RaycastHit hit))
+        if (turnManager.CurrentTurnIndex != LocalPlayerActorNumber)
         {
-            var piece = hit.collider.GetComponent<Piece>();
-            if (piece != null)
-            {
-                if (piece != hoveredPiece && hoveredPiece != null)
-                {
-                    hoveredPiece.SetHovered(false);
-                }
-
-                if (possibleMoves != null && possibleMoves.Contains(piece)) { }
-                else if (piece.OwnerId != ThisPlayerID)
-                    return;
-
-                piece.SetHovered(true);
-                hoveredPiece = piece;
-
-                // Select and deselect any piece
-                if (Input.GetMouseButtonDown(0))
-                {
-                    OnClickPiece(piece);
-                }
-            }
-            else if (hoveredPiece != null)
+            if (selectedPiece != null)
+                DeselectCurrentPiece();
+            if (hoveredPiece != null)
             {
                 hoveredPiece.SetHovered(false);
                 hoveredPiece = null;
             }
+            return;
         }
-        else if (hoveredPiece != null)
+
+        HandleHover();
+        HandleClick();
+    }
+
+    private void HandleHover()
+    {
+        Ray ray = mainCamera.ScreenPointToRay(Input.mousePosition);
+        Physics.Raycast(ray, out RaycastHit hit);
+        Piece pieceUnderMouse = hit.collider?.GetComponent<Piece>();
+
+        // Limpa o hover da peça anterior
+        if (hoveredPiece != null && hoveredPiece != pieceUnderMouse)
         {
             hoveredPiece.SetHovered(false);
             hoveredPiece = null;
         }
-    }
 
-    private void OnClickPiece(Piece piece)
-    {
-        if (selectedPiece != null && !piece.IsInteractable)
-        { // move selected piece
-            MoveSelectedPiece(piece);
-            return;
+        
+        Piece pieceToHover = null;
+        if (selectedPiece != null) // Modo de Movimento
+        {
+            // 
+            if (
+                pieceUnderMouse != null
+                && PossibleMoves != null
+                && PossibleMoves.Contains(pieceUnderMouse)
+            )
+            {
+                pieceToHover = pieceUnderMouse;
+            }
         }
-        else if (
-            piece.OwnerId == (int)NetworkManager.Singleton.LocalClientId
-            && piece.IsInteractable
-        )
-        { // select piece
-            bool wasSelected = SelectPiece(piece);
-            if (!wasSelected)
-                Debug.LogError("Piece could not be selected");
-            return;
-        }
-        return;
-    }
-
-    private bool SelectPiece(Piece piece)
-    {
-        if (
-            piece.IsInteractable // the clicked piece can be selected
-            && piece.OwnerId == ThisPlayerID // the clicked piece is owned by the player
-        )
-        { // can select piece
-            if (selectedPiece != null)
-                // is this piece already selected ?
-                if (selectedPiece != piece)
-                    // deselect the previously selected piece
-                    DeselectPiece();
-                else
-                // deselect the selected piece
-                {
-                    DeselectPiece();
-                    return false;
-                }
-
-            piece.SetSelected(true);
-            selectedPiece = piece;
-            return true;
+        else // Modo de Seleção
+        {
+            if (
+                pieceUnderMouse != null
+                && pieceUnderMouse.OwnerId == LocalPlayerActorNumber
+                && pieceUnderMouse.IsInteractable
+            )
+            {
+                pieceToHover = pieceUnderMouse;
+            }
         }
 
-        return false;
+        if (pieceToHover != null)
+        {
+            hoveredPiece = pieceToHover;
+            hoveredPiece.SetHovered(true);
+        }
+    }
+    private void HandleClick()
+    {
+        if (!Input.GetMouseButtonDown(0)) return;
+
+        Ray ray = mainCamera.ScreenPointToRay(Input.mousePosition);
+        Physics.Raycast(ray, out RaycastHit hit);
+        Piece clickedPiece = hit.collider?.GetComponent<Piece>();
+
+        // Nenhuma peça selecionada.
+        if (selectedPiece == null)
+        {
+            // Clicou numa peça sua e válida para a selecionar.
+            if (clickedPiece != null && clickedPiece.OwnerId == LocalPlayerActorNumber && clickedPiece.IsInteractable)
+            {
+                SelectNewPiece(clickedPiece);
+            }
+        }
+        // Uma peça já está selecionada.
+        else
+        {
+            if (clickedPiece != null && PossibleMoves != null && PossibleMoves.Contains(clickedPiece))
+
+                AttemptMove(selectedPiece, clickedPiece);
+
+            else if (clickedPiece != null && clickedPiece != selectedPiece && clickedPiece.OwnerId == LocalPlayerActorNumber && clickedPiece.IsInteractable)
+
+                SelectNewPiece(clickedPiece);
+
+            else
+
+                DeselectCurrentPiece();
+
+        }
     }
 
-    private bool DeselectPiece()
+    private void SelectNewPiece(Piece piece)
     {
+        // Limpa a seleção anterior antes de selecionar a nova.
         if (selectedPiece != null)
         {
             selectedPiece.SetSelected(false);
-            selectedPiece.SetCorrectColor();
-            selectedPiece = null;
-            return true;
         }
-        return false;
+
+        selectedPiece = piece;
+        selectedPiece.SetSelected(true);
     }
 
-    private bool MoveSelectedPiece(Piece newPiecePosition)
+    private void DeselectCurrentPiece()
     {
-        if (selectedPiece == null)
-            return false;
-        selectedPiece.IsInteractable = false;
-        DeselectPiece();
-
-        ChangePieceOwner(ThisPlayerID, newPiecePosition, true);
-
-        return true;
+        if (selectedPiece != null)
+        {
+            selectedPiece.SetSelected(false); // Isto vai limpar os destaques
+            selectedPiece = null;
+            PossibleMoves = null;
+        }
     }
 
-    private void ChangePieceOwner(int ownerId, Piece piece, bool setInteractable = false)
+    private void AttemptMove(Piece from, Piece to)
     {
-        piece.OwnerId = ThisPlayerID;
-        piece.IsInteractable = setInteractable;
-        piece.SetCorrectColor();
+        // Envia o pedido ao MasterClient para executar a jogada.
+        turnManager.photonView.RPC(
+            "RequestMoveRpc",
+            RpcTarget.MasterClient,
+            from.photonView.ViewID,
+            to.photonView.ViewID
+        );
+
+        // Limpa o estado local imediatamente para dar feedback.
+        DeselectCurrentPiece();
     }
 }

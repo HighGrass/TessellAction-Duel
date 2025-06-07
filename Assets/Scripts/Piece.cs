@@ -1,190 +1,447 @@
 using System.Collections.Generic;
 using System.Linq;
-using Fusion;
+using Photon.Pun;
 using UnityEngine;
 
-public class Piece : NetworkBehaviour
+// Adicione este enum no topo, dentro ou fora da classe Piece
+public enum InitialOwnerType
 {
-    private Vector3 originalPosition;
+    None,
+    Player1_MasterClient,
+    Player2_Client,
+}
+
+public class Piece : MonoBehaviourPun, IPunObservable
+{
+    // --- Configuração Inicial (visível no Inspector) ---
+    [Header("Initial Setup")]
+    [Tooltip(
+        "Define o dono inicial desta peça. Player1 é o MasterClient, Player2 é o segundo jogador."
+    )]
+    [SerializeField]
+    private InitialOwnerType initialOwner = InitialOwnerType.None;
+
+    [Tooltip("Define se a peça começa como interativa (se tiver um dono).")]
+    [SerializeField]
+    private bool startsInteractable = true;
+
+    // Propriedade pública para que o GameManager possa ler a configuração inicial
+    public InitialOwnerType InitialOwner => initialOwner;
+    public bool StartsInteractable => startsInteractable;
+
+    // --- Propriedades Locais e de Referência ---
+    private Vector3 visualOffsetPosition; // Usado para hover e seleção local, relativo à currentPosition
     private bool isHovered = false;
     private bool isSelected = false;
-    public bool IsSelected => isSelected;
+    public bool IsSelected => isSelected; // Apenas leitura, para uso local do Player
+
     private Material defaultMaterial;
-
-    [SerializeField]
-    private int ownerId = -1;
-    private bool isInteractable = false;
-    public bool IsInteractable
-    {
-        get => isInteractable;
-        set => isInteractable = value;
-    }
-
+    private Renderer pieceRenderer;
     private List<Piece> neighbors = new List<Piece>();
     public List<Piece> Neighbors => neighbors;
 
-    TurnManager turnManager;
-    private Renderer pieceRenderer;
+    // --- Estado Sincronizado via IPunObservable ---
+    public Vector3 CurrentPosition { get; private set; }
+    private int ownerIdInternal = -1; // ActorNumber do Photon. -1 se não tiver dono.
+    private bool isInteractableInternal = false;
+    private int currentMaterialID = -1; // Usaremos um ID para o material para simplificar
 
-    [Networked]
-    private Vector3 netPosition { get; set; }
+    // --- Propriedades Públicas para Estado Lógico (controladas via RPCs) ---
+    public int OwnerId => ownerIdInternal;
+    public bool IsInteractable => isInteractableInternal;
 
-    [Networked]
-    private int MaterialIndex { get; set; }
-
-    public int OwnerId
+    void Awake()
     {
-        get => ownerId;
-        set => ownerId = value;
-    }
-
-    public override void Spawned()
-    {
-        originalPosition = transform.position;
         pieceRenderer = GetComponentInChildren<Renderer>();
-        defaultMaterial = pieceRenderer.material;
-
-        turnManager = FindObjectOfType<TurnManager>();
-
-        if (ownerId > -1)
-            isInteractable = true;
-
-        neighbors = Physics
-            .OverlapSphere(transform.position, 1f, LayerMask.GetMask("Piece"))
-            .Select(hit => hit.GetComponent<Piece>())
-            .Where(piece => piece != null && piece != this)
-            .ToList();
-
-        // Sync initial networked position
-        if (Object.HasStateAuthority)
-            netPosition = transform.position;
-
-        SetCorrectColor();
-    }
-
-    public override void FixedUpdateNetwork()
-    {
-        transform.position = netPosition;
-
-        // Apply material if index is valid
-        if (MaterialIndex >= 0 && MaterialIndex < PlayerMaterials.PiecesMaterials.Count)
+        if (pieceRenderer != null)
         {
-            pieceRenderer.material = PlayerMaterials.PiecesMaterials[MaterialIndex];
+            defaultMaterial = pieceRenderer.material; // Guarda o material original como default
         }
-    }
-
-    public void SetHovered(bool hovered)
-    {
-        if (isSelected || !isInteractable)
-            return;
-
-        if (hovered == isHovered)
-            return;
-
-        isHovered = hovered;
-        Vector3 targetPosition = originalPosition + (isHovered ? Vector3.up * 0.2f : Vector3.zero);
-        RequestMoveServerRpc(targetPosition);
-    }
-
-    public void SetSelected(bool selected)
-    {
-        if (!isInteractable || selected == isSelected)
-            return;
-
-        isSelected = selected;
-        Vector3 targetPosition = originalPosition + (isSelected ? Vector3.up * 0.5f : Vector3.zero);
-        RequestMoveServerRpc(targetPosition);
-
-        Player currentPlayer = FindObjectsOfType<Player>()[turnManager.CurrentTurnIndex];
-
-        foreach (Piece piece in GetPossibleMoves())
+        else
         {
-            if (isSelected)
+            Debug.LogError($"Renderer não encontrado na peça: {gameObject.name}", this);
+        }
+        CurrentPosition = transform.position; // Define a posição inicial
+    }
+
+    void Start()
+    {
+        // A lógica de autoconfiguração acontece aqui.
+        // Apenas o MasterClient tem a autoridade para definir o estado inicial do tabuleiro.
+        if (PhotonNetwork.IsMasterClient)
+        {
+            // O MasterClient lê a configuração do editor e a transmite para todos.
+            int targetOwnerId = -1;
+            bool isInteractable = this.startsInteractable;
+
+            if (PhotonNetwork.CurrentRoom.PlayerCount >= 2)
             {
-                piece.HighlightPiece(true);
-                currentPlayer.PossibleMoves = GetPossibleMoves().ToArray();
+                // CORREÇÃO AQUI: A variável é do tipo Photon.Realtime.Player
+                Photon.Realtime.Player otherPlayer = PhotonNetwork.PlayerListOthers[0];
+                switch (initialOwner)
+                {
+                    case InitialOwnerType.Player1_MasterClient:
+                        targetOwnerId = PhotonNetwork.MasterClient.ActorNumber;
+                        break;
+                    case InitialOwnerType.Player2_Client:
+                        // Agora isto funciona, porque otherPlayer é do tipo correto e tem ActorNumber
+                        targetOwnerId = otherPlayer.ActorNumber;
+                        break;
+                    case InitialOwnerType.None:
+                    default:
+                        targetOwnerId = -1;
+                        isInteractable = false;
+                        break;
+                }
             }
             else
-            {
-                piece.HighlightPiece(false);
-                currentPlayer.PossibleMoves = null;
+            { // Se a sala não estiver cheia, define tudo como neutro por enquanto.
+                targetOwnerId = -1;
+                isInteractable = false;
             }
-        }
-    }
 
-    public List<Piece> GetPossibleMoves()
-    {
-        List<Piece> possibleMoves = new();
-
-        foreach (Piece piece in neighbors)
-        {
-            if (piece.OwnerId < 0)
-                possibleMoves.Add(piece);
-            else if (piece.OwnerId != OwnerId)
-            {
-                Vector3 diff = piece.originalPosition - originalPosition;
-                var backPieces = FindPiecesByPosition(
-                        piece.originalPosition + diff + new Vector3(0, 0.5f, 0)
-                    )
-                    .Where(p => p.OwnerId < 0)
-                    .ToList();
-
-                possibleMoves.AddRange(backPieces);
-            }
+            Debug.Log(
+                $"MasterClient a configurar a peça {gameObject.name}. Dono alvo: {targetOwnerId}"
+            );
+            // Usa o método SetOwnerState para enviar um RPC que sincroniza este estado.
+            SetOwnerState(targetOwnerId, isInteractable);
         }
 
-        Debug.Log($"{possibleMoves.Count} possible moves");
-        return possibleMoves;
+        // A posição inicial é definida quando a peça é instanciada e movida para o seu lugar.
+        // currentPosition será sincronizada.
+        // Se este cliente instanciar (MasterClient), ele definirá currentPosition.
+        if (photonView.IsMine)
+        { // Geralmente o MasterClient ao configurar o tabuleiro
+            CurrentPosition = transform.position;
+        }
+        // Os vizinhos são calculados localmente e podem precisar ser recalculados se as peças se moverem de forma complexa.
+        CalculateNeighbors();
+        ApplyMaterial(); // Aplica o material inicial com base no estado sincronizado
     }
 
-    private List<Piece> FindPiecesByPosition(Vector3 pos, float radius = 0.8f)
+    void CalculateNeighbors()
     {
-        return Physics
-            .OverlapSphere(pos, radius, LayerMask.GetMask("Piece"))
+        // RAIO CORRIGIDO PARA 1.5f PARA DETETAR VIZINHOS NA DIAGONAL DE FORMA FIÁVEL.
+        neighbors = Physics.OverlapSphere(transform.position, 1.5f, LayerMask.GetMask("Piece"))
             .Select(hit => hit.GetComponent<Piece>())
             .Where(p => p != null && p != this)
             .ToList();
     }
 
-    [Rpc(RpcSources.InputAuthority, RpcTargets.StateAuthority)]
-    public void RequestMoveServerRpc(Vector3 newPosition)
+    public void OnPhotonSerializeView(PhotonStream stream, PhotonMessageInfo info)
     {
-        if (!Object.HasStateAuthority)
-            return;
+        if (stream.IsWriting)
+        {
+            // Só o proprietário da PhotonView envia os dados
+            stream.SendNext(CurrentPosition);
+            stream.SendNext(ownerIdInternal);
+            stream.SendNext(isInteractableInternal);
+            stream.SendNext(currentMaterialID);
+        }
+        else
+        {
+            // Outros clientes recebem os dados
+            CurrentPosition = (Vector3)stream.ReceiveNext();
+            ownerIdInternal = (int)stream.ReceiveNext();
+            isInteractableInternal = (bool)stream.ReceiveNext();
+            currentMaterialID = (int)stream.ReceiveNext();
 
-        netPosition = newPosition;
+            ApplyMaterial(); // Aplica o material com base nos dados recebidos
+        }
     }
 
-    public void HighlightPiece(bool highlight)
+    void Update()
     {
-        ChangeServerMaterial(
-            highlight ? PlayerMaterials.PossibleMoveMaterial : GetCorrectMaterial()
+        if (photonView == null)
+        {
+            Debug.LogError(
+                $"PhotonView é NULO no GameObject: {gameObject.name}."
+            );
+            enabled = false;
+            return;
+        }
+
+        Vector3 targetPosition = CurrentPosition + visualOffsetPosition;
+        transform.position = Vector3.Lerp(transform.position, targetPosition, Time.deltaTime * 15f);
+    }
+
+    public void SetHovered(bool hovered)
+    {
+        if (isSelected || this.isHovered == hovered)
+            return;
+        this.isHovered = hovered;
+        visualOffsetPosition = hovered ? Vector3.up * 0.2f : Vector3.zero;
+    }
+
+    public void SetSelected(bool selected)
+    {
+        if (this.isSelected == selected)
+            return;
+        this.isSelected = selected;
+        isHovered = false; // Seleção cancela o hover
+
+        if (selected)
+        {
+            visualOffsetPosition = Vector3.up * 0.4f;
+            Player localPlayer = GetLocalPlayer();
+            if (localPlayer != null)
+            {
+                ClearPossibleMoveHighlights(localPlayer);
+                localPlayer.PossibleMoves = GetPossibleMoves().ToArray();
+                HighlightPossibleMoves(localPlayer, true);
+            }
+        }
+        else
+        {
+            visualOffsetPosition = Vector3.zero;
+            Player localPlayer = GetLocalPlayer();
+            if (localPlayer != null)
+            {
+                HighlightPossibleMoves(localPlayer, false);
+                localPlayer.PossibleMoves = null;
+            }
+        }
+    }
+
+    private Player GetLocalPlayer()
+    =>
+         FindObjectsOfType<Player>().FirstOrDefault(p => p.photonView.IsMine);
+
+
+    private void ClearPossibleMoveHighlights(Player player)
+    {
+        if (player.PossibleMoves != null)
+        {
+            foreach (Piece move in player.PossibleMoves)
+            {
+                if (move != null)
+                    move.HighlightPieceVisual(false);
+            }
+        }
+    }
+
+    private void HighlightPossibleMoves(Player player, bool highlight)
+    {
+        if (player.PossibleMoves != null)
+        {
+            foreach (Piece move in player.PossibleMoves)
+            {
+                if (move != null)
+                    move.HighlightPieceVisual(highlight);
+            }
+        }
+    }
+
+    // Chamado localmente por outra peça para destacar/remover destaque como um movimento possível
+    public void HighlightPieceVisual(bool state)
+    {
+        if (pieceRenderer == null) return;
+
+        if (state)
+        {
+
+            pieceRenderer.material = PlayerMaterials.PossibleMoveMaterial;
+        }
+        else
+        {
+
+            ApplyMaterial();
+        }
+    }
+
+    public List<Piece> GetPossibleMoves()
+    {
+        List<Piece> possibleMoves = new List<Piece>();
+        CalculateNeighbors();
+
+        foreach (Piece neighbor in neighbors)
+        {
+            if (neighbor.OwnerId == -1 || !neighbor.IsInteractable)
+            {
+                possibleMoves.Add(neighbor);
+            }
+            else if (neighbor.OwnerId != this.OwnerId)
+            {
+                Vector3 jumpDirection = (
+                  neighbor.transform.position - this.transform.position
+              ).normalized;
+
+                foreach (Piece landingSpot in neighbor.Neighbors)
+                {
+                    Vector3 landingDirection = (
+                       landingSpot.transform.position - neighbor.transform.position
+                   ).normalized;
+
+                    if (
+                   Vector3.Dot(jumpDirection, landingDirection) > 0.95f
+                   && (landingSpot.OwnerId == -1 || !landingSpot.IsInteractable)
+               )
+                    {
+                        possibleMoves.Add(landingSpot);
+                    }
+                }
+            }
+        }
+        return possibleMoves;
+    }
+
+    // --- RPCs para Modificar Estado Sincronizado ---
+
+    // Chamado pelo Player local quando quer mover esta peça (que ele controla: photonView.IsMine)
+    public void RequestMove(Vector3 newTargetPosition)
+    {
+        if (photonView.IsMine)
+        {
+            // O proprietário envia um RPC para todos atualizarem a posição
+            photonView.RPC("ExecuteMoveRpc", RpcTarget.All, newTargetPosition);
+        }
+    }
+
+    [PunRPC]
+    private void ExecuteMoveRpc(Vector3 newPosition, PhotonMessageInfo info)
+    {
+        
+        CurrentPosition = newPosition;
+        visualOffsetPosition = Vector3.zero; // Reseta offset visual após movimento
+
+       
+        if (photonView.IsMine)
+        {
+            transform.position = CurrentPosition;
+        }
+        
+
+        Debug.Log(
+            $"Peça {photonView.ViewID} movida para {newPosition} por Actor:{info.Sender?.ActorNumber}"
         );
     }
 
-    private void ChangeServerMaterial(Material material)
+    // Chamado pelo MasterClient (ou lógica de captura) para mudar o dono e estado da peça.
+    public void SetOwnerState(int newOwnerActorNumber, bool newInteractable)
     {
-        int index = PlayerMaterials.PiecesMaterials.IndexOf(material);
-        if (index >= 0)
-            MaterialIndex = index;
+        
+        int newMaterialId = CalculateMaterialID(newOwnerActorNumber, newInteractable);
+        photonView.RPC(
+            "UpdateOwnerStateRpc",
+            RpcTarget.AllBuffered,
+            newOwnerActorNumber,
+            newInteractable,
+            newMaterialId
+        );
     }
 
-    public void SetCorrectColor()
+    [PunRPC]
+    private void UpdateOwnerStateRpc(
+        int newOwner,
+        bool newInteractable,
+        int newMatId,
+        PhotonMessageInfo info
+    )
     {
-        ChangeServerMaterial(GetCorrectMaterial());
+        Debug.Log(
+            $"Peça {photonView.ViewID}: UpdateOwnerStateRpc de {info.Sender?.ActorNumber}. Novo Dono: {newOwner}, Interativo: {newInteractable}, MatID: {newMatId}"
+        );
+
+        bool oldOwnerWasMine = photonView.IsMine;
+
+        ownerIdInternal = newOwner;
+        isInteractableInternal = newInteractable;
+        currentMaterialID = newMatId;
+
+        ApplyMaterial(); 
+
+        if (PhotonNetwork.IsMasterClient || oldOwnerWasMine)
+        {
+            if (newOwner != -1)
+            {
+                Photon.Realtime.Player newOwnerPlayer = PhotonNetwork.CurrentRoom.GetPlayer(
+                    newOwner
+                );
+                if (newOwnerPlayer != null)
+                {
+                    if (photonView.ControllerActorNr != newOwnerPlayer.ActorNumber)
+                    {
+                        photonView.TransferOwnership(newOwnerPlayer);
+                        Debug.Log(
+                            $"Peça {photonView.ViewID}: Propriedade transferida para ActorNr {newOwner} por {PhotonNetwork.LocalPlayer.ActorNumber}"
+                        );
+                    }
+                }
+                else // Novo dono não encontrado
+                {
+                    Debug.LogWarning(
+                        $"Peça {photonView.ViewID}: Novo dono ActorNr {newOwner} não encontrado. Tentando dar ao MasterClient."
+                    );
+                    if (
+                        PhotonNetwork.MasterClient != null
+                        && photonView.ControllerActorNr != PhotonNetwork.MasterClient.ActorNumber
+                    )
+                    {
+                        photonView.TransferOwnership(PhotonNetwork.MasterClient);
+                    }
+                }
+            }
+            else // Peça torna-se neutra (ownerId = -1)
+            {
+                if (
+                    PhotonNetwork.MasterClient != null
+                    && photonView.ControllerActorNr != PhotonNetwork.MasterClient.ActorNumber
+                )
+                {
+                    photonView.TransferOwnership(PhotonNetwork.MasterClient); // MasterClient assume controlo de peças neutras
+                    Debug.Log(
+                        $"Peça {photonView.ViewID}: Tornou-se neutra. Propriedade para MasterClient."
+                    );
+                }
+            }
+        }
     }
 
-    private Material GetCorrectMaterial()
+    private int CalculateMaterialID(int owner, bool interactable)
     {
-        if (OwnerId == 0)
-            return IsInteractable
-                ? PlayerMaterials.RedPlayerMaterial
-                : PlayerMaterials.RedPlayerInactiveMaterial;
-        else if (OwnerId == 1)
-            return IsInteractable
-                ? PlayerMaterials.BluePlayerMaterial
-                : PlayerMaterials.BluePlayerInactiveMaterial;
+        if (owner == -1)
+            return 0;
+
+        bool isPlayer1 = (owner == PhotonNetwork.MasterClient.ActorNumber);
+
+        if (isPlayer1)
+        {
+            return interactable ? 1 : 2;
+        }
         else
-            return defaultMaterial;
+        {
+            return interactable ? 3 : 4;
+        }
+    }
+
+    private void ApplyMaterial()
+    {
+        if (pieceRenderer == null)
+            return;
+
+        Material materialToApply = defaultMaterial; // Por defeito
+
+        switch (currentMaterialID)
+        {
+            case 0:
+                materialToApply = defaultMaterial;
+                break;
+            case 1:
+                materialToApply = PlayerMaterials.RedPlayerMaterial;
+                break;
+            case 2: 
+                materialToApply = PlayerMaterials.RedPlayerInactiveMaterial;
+                break;
+            case 3:
+                materialToApply = PlayerMaterials.BluePlayerMaterial;
+                break;
+            case 4: 
+                materialToApply = PlayerMaterials.BluePlayerInactiveMaterial;
+                break;
+            default:
+                materialToApply = defaultMaterial;
+                break;
+        }
+        pieceRenderer.material = materialToApply;
     }
 }

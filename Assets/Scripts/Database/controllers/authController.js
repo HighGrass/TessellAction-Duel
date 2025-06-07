@@ -34,7 +34,7 @@ exports.login = async (req, res) => {
     const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, { expiresIn: '1h' });
     res.json({ token, userId: user._id, globalScore: user.globalScore });
   } catch (error) {
-    console.error(error);  // loga no terminal o erro completo
+    console.error(error);  
     res.status(500).json({ error: error.message || 'Erro no login' });
   }
 };
