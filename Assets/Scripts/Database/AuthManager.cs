@@ -126,7 +126,7 @@ public class AuthManager : MonoBehaviour
                     "Token era válido, mas falhou ao obter o perfil: " + profileRequest.error
                 );
                 ErrorMessageManager.Instance.ShowError(
-                    "Falha ao carregar o perfil. Verifique a sua ligação."
+                    "Failed to load profile. Check your connection."
                 );
                 File.Delete(savePath);
             }
@@ -184,7 +184,7 @@ public class AuthManager : MonoBehaviour
         else
         {
             string responseText = request.downloadHandler.text;
-            string errorMessage = "Login falhou: Credenciais inválidas ou falha de rede.";
+            string errorMessage = "Login failed: Invalid credentials or network error.";
 
             if (!string.IsNullOrEmpty(responseText))
             {
@@ -193,7 +193,7 @@ public class AuthManager : MonoBehaviour
                     ErrorResponse errorResponse = JsonUtility.FromJson<ErrorResponse>(responseText);
                     if (!string.IsNullOrEmpty(errorResponse.error))
                     {
-                        errorMessage = "Login falhou: " + errorResponse.error;
+                        errorMessage = "Login failed: " + errorResponse.error;
                     }
                 }
                 catch
@@ -241,23 +241,23 @@ public class AuthManager : MonoBehaviour
         else
         {
             string responseText = request.downloadHandler.text;
-            string errorMessage = "Erro desconhecido no registo.";
+            string errorMessage = "Unknown registration error.";
 
             if (!string.IsNullOrEmpty(responseText))
             {
                 try
                 {
                     ErrorResponse errorResponse = JsonUtility.FromJson<ErrorResponse>(responseText);
-                    errorMessage = "Erro no registo: " + errorResponse.error;
+                    errorMessage = "Registration error: " + errorResponse.error;
                 }
                 catch
                 {
-                    errorMessage = "Erro no registo: " + request.error + " | " + responseText;
+                    errorMessage = "Registration error: " + request.error + " | " + responseText;
                 }
             }
             else
             {
-                errorMessage = "Erro no registo: " + request.error;
+                errorMessage = "Registration error: " + request.error;
             }
             ErrorMessageManager.Instance.ShowError(errorMessage);
             Debug.LogError(errorMessage);

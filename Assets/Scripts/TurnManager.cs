@@ -1,3 +1,4 @@
+using System.Collections;
 using System.Linq;
 using Photon.Pun;
 using Photon.Realtime;
@@ -7,6 +8,20 @@ using UnityEngine.SceneManagement;
 public class TurnManager : MonoBehaviourPunCallbacks
 {
     public int CurrentTurnIndex { get; private set; } = -1;
+
+    [Header("Turn Timer Settings")]
+    public float turnTimeLimit = 30f; // 30 segundos por turno
+
+    private float currentTurnTimeRemaining;
+    private Coroutine turnTimerCoroutine;
+    private bool isGameActive = true;
+
+    // Propriedades públicas para a UI
+    public float CurrentTurnTimeRemaining => currentTurnTimeRemaining;
+    public bool IsMyTurn => PhotonNetwork.LocalPlayer.ActorNumber == CurrentTurnIndex;
+    public bool IsGameActive => isGameActive;
+
+   
 
     public override void OnEnable()
     {
@@ -22,6 +37,9 @@ public class TurnManager : MonoBehaviourPunCallbacks
 
     void Start()
     {
+        // Inicializar o jogo como ativo
+        isGameActive = true;
+
         // Apenas o MasterClient decide o estado inicial.
         if (PhotonNetwork.IsMasterClient)
         {
@@ -35,7 +53,53 @@ public class TurnManager : MonoBehaviourPunCallbacks
     private void SyncTurnRpc(int newTurnIndex)
     {
         CurrentTurnIndex = newTurnIndex;
-        Debug.Log($"--- TURNO ATUALIZADO PARA JOGADOR: {CurrentTurnIndex} ---");
+
+        // Iniciar temporizador para o novo turno
+        StartTurnTimer();
+    }
+
+    private void StartTurnTimer()
+    {
+        // Parar temporizador anterior se existir
+        if (turnTimerCoroutine != null)
+        {
+            StopCoroutine(turnTimerCoroutine);
+        }
+
+        // Só iniciar temporizador se o jogo estiver ativo
+        if (isGameActive)
+        {
+            currentTurnTimeRemaining = turnTimeLimit;
+            turnTimerCoroutine = StartCoroutine(TurnTimerCoroutine());
+        }
+    }
+
+    private IEnumerator TurnTimerCoroutine()
+    {
+        while (currentTurnTimeRemaining > 0 && isGameActive)
+        {
+            yield return new WaitForSeconds(1f);
+            currentTurnTimeRemaining -= 1f;
+        }
+
+        // Tempo esgotado - trocar turno automaticamente
+        if (isGameActive && PhotonNetwork.IsMasterClient)
+        {
+            SwitchToNextTurn();
+        }
+    }
+
+    private void SwitchToNextTurn()
+    {
+        var otherPlayer = PhotonNetwork.CurrentRoom.Players.Values.FirstOrDefault(p =>
+            p.ActorNumber != CurrentTurnIndex
+        );
+
+        if (otherPlayer != null)
+        {
+            int nextTurnIndex = otherPlayer.ActorNumber;
+            photonView.RPC("SyncTurnRpc", RpcTarget.All, nextTurnIndex);
+        }
     }
 
     [PunRPC]
@@ -72,7 +136,14 @@ public class TurnManager : MonoBehaviourPunCallbacks
     [PunRPC]
     private void GameOverRpc()
     {
-        Debug.Log("Fim de Jogo! A iniciar o processo de saída da sala...");
+        // Parar o jogo e temporizador
+        isGameActive = false;
+        if (turnTimerCoroutine != null)
+        {
+            StopCoroutine(turnTimerCoroutine);
+            turnTimerCoroutine = null;
+        }
+
         if (PhotonNetwork.InRoom)
         {
             PhotonNetwork.LeaveRoom();
@@ -85,7 +156,14 @@ public class TurnManager : MonoBehaviourPunCallbacks
 
     public override void OnLeftRoom()
     {
-        Debug.Log("Saída da sala confirmada. A carregar o menu...");
+        // Parar temporizador quando saímos da sala
+        isGameActive = false;
+        if (turnTimerCoroutine != null)
+        {
+            StopCoroutine(turnTimerCoroutine);
+            turnTimerCoroutine = null;
+        }
+
         SceneManager.LoadScene("MatchmakingMenu");
     }
 

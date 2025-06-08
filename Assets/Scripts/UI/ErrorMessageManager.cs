@@ -43,7 +43,7 @@ public class ErrorMessageManager : MonoBehaviour
         Canvas canvas = FindObjectOfType<Canvas>();
         if (canvas == null)
         {
-            Debug.LogError("ErrorMessageManager: Nenhum Canvas encontrado.");
+            Debug.LogError("ErrorMessageManager: No Canvas found.");
             return;
         }
 
@@ -74,7 +74,7 @@ public class ErrorMessageManager : MonoBehaviour
 
         if (_errorContainerRect == null)
         {
-            Debug.LogError("ErrorMessageManager: O contentor de erros não existe");
+            Debug.LogError("ErrorMessageManager: Error container does not exist");
             return;
         }
         StartCoroutine(ShowAndFadeErrorCoroutine(message, duration ?? defaultDisplayDuration));

@@ -218,8 +218,6 @@ public class SimplePunLauncher : MonoBehaviourPunCallbacks
 
         string myUserId = AuthManager.UserId;
         string myUsername = AuthManager.Username;
-        Debug.Log($"Verificando duplicações para UserId: {myUserId} (Username: {myUsername})");
-        Debug.Log($"Total de jogadores na sala: {PhotonNetwork.CurrentRoom.PlayerCount}");
 
         foreach (var player in PhotonNetwork.CurrentRoom.Players.Values)
         {
@@ -276,11 +274,6 @@ public class SimplePunLauncher : MonoBehaviourPunCallbacks
     [System.Diagnostics.Conditional("UNITY_EDITOR")]
     public void DebugCheckDuplicates()
     {
-        Debug.Log("=== DEBUG: Verificação Manual de Duplicações ===");
-        Debug.Log($"🔑 Meu UserId: {AuthManager.UserId}");
-        Debug.Log($"👤 Meu Username: {AuthManager.Username}");
-        Debug.Log($"🏠 Jogadores na sala: {PhotonNetwork.CurrentRoom?.PlayerCount ?? 0}");
-
         if (PhotonNetwork.CurrentRoom != null)
         {
             foreach (var player in PhotonNetwork.CurrentRoom.Players.Values)
@@ -301,35 +294,29 @@ public class SimplePunLauncher : MonoBehaviourPunCallbacks
         }
 
         bool hasDuplicates = CheckForDuplicateUsers();
-        Debug.Log(
-            $"🎯 Resultado: {(hasDuplicates ? "🚫 DUPLICAÇÃO ENCONTRADA" : "✅ SEM DUPLICAÇÕES")}"
-        );
-        Debug.Log("=== FIM DEBUG ===");
     }
 
     // Método para forçar atualização das propriedades
     [System.Diagnostics.Conditional("UNITY_EDITOR")]
     public void ForceUpdateProperties()
     {
-        Debug.Log("🔄 Forçando atualização das propriedades...");
+        Debug.Log("Forçando atualização das propriedades...");
         SetupPlayerProperties();
     }
 
-    // Método para testar o sistema de eventos
     [System.Diagnostics.Conditional("UNITY_EDITOR")]
     public void TestUserChangedEvent()
     {
-        Debug.Log("🧪 Testando evento OnUserChanged...");
+        Debug.Log("Testando evento OnUserChanged...");
         OnUserChanged();
     }
 
     private void ShowDuplicateUserError()
     {
-        // Tentar mostrar erro usando o ErrorMessageManager se disponível
         if (ErrorMessageManager.Instance != null)
         {
             ErrorMessageManager.Instance.ShowError(
-                "Não é possível jogar contra a mesma conta! Tente novamente."
+                "Cannot play against the same account! Try again."
             );
         }
         else
@@ -345,7 +332,7 @@ public class SimplePunLauncher : MonoBehaviourPunCallbacks
             if (PhotonNetwork.CurrentRoom.PlayerCount == PhotonNetwork.CurrentRoom.MaxPlayers)
             {
                 Debug.Log("Sala cheia! MasterClient a carregar a cena do jogo...");
-                PhotonNetwork.CurrentRoom.IsOpen = false; // Fecha a sala para que ninguém mais possa entrar
+                PhotonNetwork.CurrentRoom.IsOpen = false; 
                 PhotonNetwork.LoadLevel(gameSceneName);
             }
             else
@@ -357,7 +344,6 @@ public class SimplePunLauncher : MonoBehaviourPunCallbacks
         }
     }
 
-    // Adicionados callbacks de cena para instanciar o jogador de forma fiável
     public override void OnEnable()
     {
         base.OnEnable();
@@ -409,14 +395,41 @@ public class SimplePunLauncher : MonoBehaviourPunCallbacks
 
     public override void OnPlayerLeftRoom(Photon.Realtime.Player otherPlayer)
     {
-        Debug.Log($"Jogador {otherPlayer.NickName} saiu da sala.");
-
-        // Se estamos no menu de matchmaking e o outro jogador saiu, voltar ao lobby
         if (SceneManager.GetActiveScene().name == "MatchmakingMenu")
         {
-            Debug.Log("Outro jogador saiu durante o matchmaking. A voltar ao lobby...");
             PhotonNetwork.LeaveRoom();
         }
-        // Aqui pode-se adicionar lógica para lidar com um jogador a desistir a meio do jogo.
+        else if (SceneManager.GetActiveScene().name == "GameScene")
+        {
+            // Jogador desconectou durante o jogo
+            HandlePlayerDisconnectedDuringGame();
+        }
+    }
+
+    private void HandlePlayerDisconnectedDuringGame()
+    {
+        if (AuthManager.Instance != null)
+        {
+            // Jogador que ficou = vitória (+50 pontos)
+            AuthManager.Instance.EnviarResultadoDeJogo("win", 50);
+        }
+
+        // Voltar ao menu de matchmaking após um pequeno delay
+        StartCoroutine(ReturnToMatchmakingAfterDisconnect());
+    }
+
+    private System.Collections.IEnumerator ReturnToMatchmakingAfterDisconnect()
+    {
+        // Pequeno delay para garantir que a atualização da BD é enviada
+        yield return new WaitForSeconds(1.0f);
+
+        if (PhotonNetwork.InRoom)
+        {
+            PhotonNetwork.LeaveRoom();
+        }
+        else
+        {
+            SceneManager.LoadScene("MatchmakingMenu");
+        }
     }
 }
