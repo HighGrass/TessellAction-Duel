@@ -47,9 +47,13 @@ exports.updateStats = async (req, res) => {
     const userId = req.user._id;
     const { result, score } = req.body;
 
+    console.log(`Atualizando stats para usuário ${userId}: result=${result}, score=${score}`);
+
     const globalScoreDelta = typeof score === 'number' ? score : 0;
     const gamesPlayedDelta = 1;
     const gamesWonDelta = result === 'win' ? 1 : 0;
+
+    console.log(`Deltas calculados: globalScore=${globalScoreDelta}, gamesPlayed=${gamesPlayedDelta}, gamesWon=${gamesWonDelta}`);
 
     const updateResult = await updateUserStats(userId, {
       globalScoreDelta,
@@ -58,8 +62,11 @@ exports.updateStats = async (req, res) => {
     });
 
     if (updateResult.error) {
+      console.error('Erro no updateUserStats:', updateResult.error);
       return res.status(400).json({ error: updateResult.error });
     }
+
+    console.log('Stats atualizadas com sucesso:', updateResult.user);
 
     res.status(200).json({
       userId: updateResult.user.userId,

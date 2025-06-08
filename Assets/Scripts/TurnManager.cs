@@ -43,6 +43,33 @@ public class TurnManager : MonoBehaviourPunCallbacks
         FindObjectsOfType<Piece>().Count(p => p.OwnerId == playerActorNumber && p.IsInteractable);
 
     [PunRPC]
+    private void ProcessGameResultRpc(int winnerActorNumber)
+    {
+        Debug.Log($"ProcessGameResultRpc chamado. Vencedor: {winnerActorNumber}, Jogador Local: {PhotonNetwork.LocalPlayer.ActorNumber}");
+
+        // Verificar se o AuthManager está disponível
+        if (AuthManager.Instance != null)
+        {
+            if (PhotonNetwork.LocalPlayer.ActorNumber == winnerActorNumber)
+            {
+                // Jogador que venceu ganha 50 pontos
+                Debug.Log("Enviando resultado: WIN com 50 pontos");
+                AuthManager.Instance.EnviarResultadoDeJogo("win", 50);
+            }
+            else
+            {
+                // Jogador que perdeu perde 25 pontos
+                Debug.Log("Enviando resultado: LOSE com -25 pontos");
+                AuthManager.Instance.EnviarResultadoDeJogo("lose", -25);
+            }
+        }
+        else
+        {
+            Debug.LogError("AuthManager.Instance é null! Não é possível enviar resultado do jogo.");
+        }
+    }
+
+    [PunRPC]
     private void GameOverRpc()
     {
         Debug.Log("Fim de Jogo! A iniciar o processo de saída da sala...");
@@ -120,14 +147,9 @@ public class TurnManager : MonoBehaviourPunCallbacks
                 if (opponentPieceCount <= 1)
                 {
                     Debug.Log($"FIM DE JOGO! Jogador {info.Sender.ActorNumber} venceu!");
-                    if (PhotonNetwork.LocalPlayer.ActorNumber == info.Sender.ActorNumber)
-                    {
-                        AuthManager.Instance.EnviarResultadoDeJogo("win", 50); // Exemplo de score
-                    }
-                    else
-                    {
-                        AuthManager.Instance.EnviarResultadoDeJogo("lose", 10); // Score alternativo
-                    }
+
+                    // Enviar RPC para todos os jogadores processarem o resultado
+                    photonView.RPC("ProcessGameResultRpc", RpcTarget.All, info.Sender.ActorNumber);
                     photonView.RPC("GameOverRpc", RpcTarget.All);
                     return;
                 }

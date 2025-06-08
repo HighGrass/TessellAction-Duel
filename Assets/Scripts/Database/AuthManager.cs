@@ -30,8 +30,11 @@ public class AuthManager : MonoBehaviour
 
     private void Awake()
     {
+        Debug.Log($"[{(Application.isEditor ? "EDITOR" : "BUILD")}] AuthManager.Awake() chamado");
+
         if (Instance != null && Instance != this)
         {
+            Debug.Log("AuthManager já existe, destruindo esta instância");
             Destroy(gameObject);
             return;
         }
@@ -39,17 +42,35 @@ public class AuthManager : MonoBehaviour
         DontDestroyOnLoad(gameObject);
 
         savePath = Path.Combine(Application.persistentDataPath, "auth.json");
+        Debug.Log($"Save path: {savePath}");
 
         if (File.Exists(savePath))
         {
-            string json = File.ReadAllText(savePath);
-            string decryptedJson = EncryptDecrypt(json);
-            SavedAuthData data = JsonUtility.FromJson<SavedAuthData>(decryptedJson);
+            Debug.Log("Ficheiro de auth encontrado, a carregar dados...");
+            try
+            {
+                string json = File.ReadAllText(savePath);
+                string decryptedJson = EncryptDecrypt(json);
+                SavedAuthData data = JsonUtility.FromJson<SavedAuthData>(decryptedJson);
 
-            AuthToken = data.token;
-            UserId = data.userId;
+                AuthToken = data.token;
+                UserId = data.userId;
 
-            StartCoroutine(VerifyTokenCoroutine());
+                Debug.Log(
+                    $"Dados carregados - UserId: {UserId}, Token existe: {!string.IsNullOrEmpty(AuthToken)}"
+                );
+
+                StartCoroutine(VerifyTokenCoroutine());
+            }
+            catch (System.Exception e)
+            {
+                Debug.LogError($"Erro ao carregar dados de auth: {e.Message}");
+                File.Delete(savePath);
+            }
+        }
+        else
+        {
+            Debug.Log("Nenhum ficheiro de auth encontrado");
         }
     }
 
@@ -238,12 +259,35 @@ public class AuthManager : MonoBehaviour
 
     public void EnviarResultadoDeJogo(string resultado, int pontos)
     {
+        Debug.Log(
+            $"[{(Application.isEditor ? "EDITOR" : "BUILD")}] EnviarResultadoDeJogo chamado: resultado={resultado}, pontos={pontos}"
+        );
+        Debug.Log($"AuthManager.Instance existe: {Instance != null}");
+        Debug.Log($"AuthToken existe: {!string.IsNullOrEmpty(AuthToken)}");
+        Debug.Log($"UserId existe: {!string.IsNullOrEmpty(UserId)}");
+
+        if (string.IsNullOrEmpty(AuthToken))
+        {
+            Debug.LogError("AuthToken é null ou vazio! Não é possível enviar resultado do jogo.");
+            Debug.LogError($"Valores atuais - AuthToken: '{AuthToken}', UserId: '{UserId}'");
+            return;
+        }
+
+        if (string.IsNullOrEmpty(UserId))
+        {
+            Debug.LogError("UserId é null ou vazio! Não é possível enviar resultado do jogo.");
+            Debug.LogError($"Valores atuais - AuthToken: '{AuthToken}', UserId: '{UserId}'");
+            return;
+        }
+
+        Debug.Log($"Iniciando corrotina para atualizar estatísticas...");
         StartCoroutine(AtualizarEstatisticas(resultado, pontos));
     }
 
     private IEnumerator AtualizarEstatisticas(string resultado, int pontos)
     {
         string jsonBody = $"{{\"result\":\"{resultado}\",\"score\":{pontos}}}";
+        Debug.Log($"Enviando dados para o servidor: {jsonBody}");
 
         UnityWebRequest request = new UnityWebRequest(backendUrl + "/api/auth/stats", "PUT");
         byte[] bodyRaw = Encoding.UTF8.GetBytes(jsonBody);
@@ -252,20 +296,38 @@ public class AuthManager : MonoBehaviour
         request.SetRequestHeader("Content-Type", "application/json");
         request.SetRequestHeader("Authorization", "Bearer " + AuthToken);
 
+        Debug.Log($"Enviando request para: {backendUrl}/api/auth/stats");
+        Debug.Log(
+            $"Authorization header: Bearer {AuthToken.Substring(0, Mathf.Min(10, AuthToken.Length))}..."
+        );
+
         yield return request.SendWebRequest();
 
         if (request.result == UnityWebRequest.Result.Success)
         {
             Debug.Log("Estatísticas atualizadas com sucesso!");
-            // Se quiseres atualizar valores locais:
-            var response = JsonUtility.FromJson<LoginResponse>(request.downloadHandler.text);
-            GlobalScore = response.globalScore;
-            GamesPlayed = response.gamesPlayed;
-            GamesWon = response.gamesWon;
+            Debug.Log($"Resposta do servidor: {request.downloadHandler.text}");
+
+            try
+            {
+                var response = JsonUtility.FromJson<LoginResponse>(request.downloadHandler.text);
+                GlobalScore = response.globalScore;
+                GamesPlayed = response.gamesPlayed;
+                GamesWon = response.gamesWon;
+                Debug.Log(
+                    $"Stats locais atualizadas: Score={GlobalScore}, Played={GamesPlayed}, Won={GamesWon}"
+                );
+            }
+            catch (System.Exception e)
+            {
+                Debug.LogError($"Erro ao fazer parse da resposta: {e.Message}");
+            }
         }
         else
         {
-            Debug.LogError("Erro ao atualizar estatísticas: " + request.downloadHandler.text);
+            Debug.LogError($"Erro ao atualizar estatísticas: {request.error}");
+            Debug.LogError($"Response Code: {request.responseCode}");
+            Debug.LogError($"Response Text: {request.downloadHandler.text}");
         }
     }
 
