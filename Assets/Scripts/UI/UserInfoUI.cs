@@ -18,6 +18,33 @@ public class UserInfoUI : MonoBehaviour
 
     void Start()
     {
+        Debug.Log($"[{(Application.isEditor ? "EDITOR" : "BUILD")}] UserInfoUI.Start() chamado");
+        RefreshUI();
+    }
+
+    void OnEnable()
+    {
+        Debug.Log($"[{(Application.isEditor ? "EDITOR" : "BUILD")}] UserInfoUI.OnEnable() chamado");
+        if (AuthManager.Instance != null)
+        {
+            AuthManager.Instance.OnStatsUpdated += RefreshUI;
+        }
+
+        RefreshUI();
+        Invoke(nameof(RefreshUI), 0.1f);
+    }
+
+    void OnDisable()
+    {
+        if (AuthManager.Instance != null)
+        {
+            AuthManager.Instance.OnStatsUpdated -= RefreshUI;
+        }
+    }
+
+    public void RefreshUI()
+    {
+       
         if (string.IsNullOrEmpty(AuthManager.Username))
         {
             Debug.LogWarning("UserInfoUI: Dados do utilizador não encontrados.");
@@ -57,5 +84,7 @@ public class UserInfoUI : MonoBehaviour
 
             winRateText.text = $"Win rate: {Mathf.FloorToInt(winRatePercent)}%";
         }
+
+        Debug.Log($"UI atualizada - Score: {AuthManager.GlobalScore}, Played: {AuthManager.GamesPlayed}, Won: {AuthManager.GamesWon}");
     }
 }

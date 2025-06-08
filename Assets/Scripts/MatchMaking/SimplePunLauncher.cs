@@ -37,6 +37,13 @@ public class SimplePunLauncher : MonoBehaviourPunCallbacks
 
         PhotonNetwork.AutomaticallySyncScene = true;
 
+        if (AuthManager.Instance != null)
+        {
+            AuthManager.Instance.OnUserChanged += OnUserChanged;
+        }
+
+        SetupPlayerProperties();
+
         if (!PhotonNetwork.IsConnected)
         {
             IsInLobby = false;
@@ -47,6 +54,45 @@ public class SimplePunLauncher : MonoBehaviourPunCallbacks
         {
             Debug.Log("Já conectado à Photon. Tentando entrar no lobby...");
             StartCoroutine(JoinLobbyWhenReady());
+        }
+    }
+
+    private void OnDestroy()
+    {
+        if (AuthManager.Instance != null)
+        {
+            AuthManager.Instance.OnUserChanged -= OnUserChanged;
+        }
+    }
+
+    private void OnUserChanged()
+    {
+        Debug.Log("Utilizador mudou!");
+        SetupPlayerProperties();
+    }
+
+    private void SetupPlayerProperties()
+    {
+        if (!string.IsNullOrEmpty(AuthManager.UserId))
+        {
+            ExitGames.Client.Photon.Hashtable props = new ExitGames.Client.Photon.Hashtable();
+            props["GameUserId"] = AuthManager.UserId;
+            props["Username"] = AuthManager.Username;
+            PhotonNetwork.LocalPlayer.SetCustomProperties(props);
+            Debug.Log(
+                $"Propriedade GameUserId configurada: {AuthManager.UserId} (Username: {AuthManager.Username})"
+            );
+        }
+        else
+        {
+            // Se UserId é null (logout), limpar as propriedades
+            ExitGames.Client.Photon.Hashtable props = new ExitGames.Client.Photon.Hashtable();
+            props["GameUserId"] = null;
+            props["Username"] = null;
+            PhotonNetwork.LocalPlayer.SetCustomProperties(props);
+            Debug.LogWarning(
+                "⚠️ AuthManager.UserId é null - limpando propriedades do Photon (logout)"
+            );
         }
     }
 
@@ -114,6 +160,9 @@ public class SimplePunLauncher : MonoBehaviourPunCallbacks
     public override void OnJoinedLobby()
     {
         Debug.Log("Entrou no lobby. Pronto para procurar partida.");
+
+        SetupPlayerProperties();
+
         IsInLobby = true;
     }
 
@@ -123,7 +172,8 @@ public class SimplePunLauncher : MonoBehaviourPunCallbacks
             $"Entrou na sala '{PhotonNetwork.CurrentRoom.Name}'. Jogadores: {PhotonNetwork.CurrentRoom.PlayerCount}/{PhotonNetwork.CurrentRoom.MaxPlayers}"
         );
         IsInLobby = false;
-        CheckForGameStart();
+
+        StartCoroutine(CheckForDuplicatesAfterDelay(0.5f));
     }
 
     public override void OnPlayerEnteredRoom(Photon.Realtime.Player newPlayer)
@@ -131,7 +181,161 @@ public class SimplePunLauncher : MonoBehaviourPunCallbacks
         Debug.Log(
             $"Jogador {newPlayer.NickName} entrou. Jogadores: {PhotonNetwork.CurrentRoom.PlayerCount}/{PhotonNetwork.CurrentRoom.MaxPlayers}"
         );
+
+        // Aguardar para as propriedades do novo jogador sincronizarem
+        StartCoroutine(CheckForDuplicatesAfterDelay(1.0f));
+    }
+
+    private IEnumerator CheckForDuplicatesAfterDelay(float delay)
+    {
+        yield return new WaitForSeconds(delay);
+
+        // Verificar se ainda estamos na sala
+        if (!PhotonNetwork.InRoom)
+            yield break;
+
+        Debug.Log("Verificando duplicações após delay...");
+
+        if (CheckForDuplicateUsers())
+        {
+            Debug.LogWarning("Detectado jogador da mesma conta na sala!");
+            ShowDuplicateUserError();
+            PhotonNetwork.LeaveRoom();
+            yield break;
+        }
+
+        // Se não há duplicações, continuar com o jogo
         CheckForGameStart();
+    }
+
+    private bool CheckForDuplicateUsers()
+    {
+        if (string.IsNullOrEmpty(AuthManager.UserId))
+        {
+            Debug.LogWarning("AuthManager.UserId é null, não é possível verificar duplicações");
+            return false;
+        }
+
+        string myUserId = AuthManager.UserId;
+        string myUsername = AuthManager.Username;
+        Debug.Log($"Verificando duplicações para UserId: {myUserId} (Username: {myUsername})");
+        Debug.Log($"Total de jogadores na sala: {PhotonNetwork.CurrentRoom.PlayerCount}");
+
+        foreach (var player in PhotonNetwork.CurrentRoom.Players.Values)
+        {
+            Debug.Log(
+                $"Verificando jogador: {player.NickName} (Actor {player.ActorNumber}, IsLocal: {player.IsLocal})"
+            );
+
+            if (player.IsLocal)
+            {
+                continue;
+            }
+
+            if (player.CustomProperties.TryGetValue("GameUserId", out object otherUserId))
+            {
+                string otherUserIdStr = otherUserId?.ToString();
+                string otherUsername = player.CustomProperties.TryGetValue(
+                    "Username",
+                    out object username
+                )
+                    ? username?.ToString()
+                    : "N/A";
+
+                Debug.Log($"GameUserId: {otherUserIdStr ?? "null"}, Username: {otherUsername}");
+
+                // Só verificar duplicação se ambos os UserIds não são null/empty
+                if (
+                    !string.IsNullOrEmpty(myUserId)
+                    && !string.IsNullOrEmpty(otherUserIdStr)
+                    && otherUserIdStr == myUserId
+                )
+                {
+                    return true;
+                }
+                else if (string.IsNullOrEmpty(otherUserIdStr))
+                {
+                    Debug.Log($"Outro jogador não tem UserId válido (provavelmente não logado)");
+                }
+                else
+                {
+                    Debug.Log($"UserIds diferentes: {myUserId} vs {otherUserIdStr}");
+                }
+            }
+            else
+            {
+                Debug.LogWarning($"Jogador {player.NickName} não tem propriedade GameUserId");
+            }
+        }
+
+        Debug.Log("✅ Nenhuma duplicação detectada - todos os jogadores têm contas diferentes");
+        return false;
+    }
+
+    // Método de debug para testar o sistema anti-duplicação
+    [System.Diagnostics.Conditional("UNITY_EDITOR")]
+    public void DebugCheckDuplicates()
+    {
+        Debug.Log("=== DEBUG: Verificação Manual de Duplicações ===");
+        Debug.Log($"🔑 Meu UserId: {AuthManager.UserId}");
+        Debug.Log($"👤 Meu Username: {AuthManager.Username}");
+        Debug.Log($"🏠 Jogadores na sala: {PhotonNetwork.CurrentRoom?.PlayerCount ?? 0}");
+
+        if (PhotonNetwork.CurrentRoom != null)
+        {
+            foreach (var player in PhotonNetwork.CurrentRoom.Players.Values)
+            {
+                string gameUserId = player.CustomProperties.TryGetValue(
+                    "GameUserId",
+                    out object userId
+                )
+                    ? userId?.ToString()
+                    : "N/A";
+                string username = player.CustomProperties.TryGetValue("Username", out object uname)
+                    ? uname?.ToString()
+                    : "N/A";
+                Debug.Log(
+                    $"- {player.NickName} (Actor {player.ActorNumber}): GameUserId = {gameUserId}, Username = {username}, IsLocal = {player.IsLocal}"
+                );
+            }
+        }
+
+        bool hasDuplicates = CheckForDuplicateUsers();
+        Debug.Log(
+            $"🎯 Resultado: {(hasDuplicates ? "🚫 DUPLICAÇÃO ENCONTRADA" : "✅ SEM DUPLICAÇÕES")}"
+        );
+        Debug.Log("=== FIM DEBUG ===");
+    }
+
+    // Método para forçar atualização das propriedades
+    [System.Diagnostics.Conditional("UNITY_EDITOR")]
+    public void ForceUpdateProperties()
+    {
+        Debug.Log("🔄 Forçando atualização das propriedades...");
+        SetupPlayerProperties();
+    }
+
+    // Método para testar o sistema de eventos
+    [System.Diagnostics.Conditional("UNITY_EDITOR")]
+    public void TestUserChangedEvent()
+    {
+        Debug.Log("🧪 Testando evento OnUserChanged...");
+        OnUserChanged();
+    }
+
+    private void ShowDuplicateUserError()
+    {
+        // Tentar mostrar erro usando o ErrorMessageManager se disponível
+        if (ErrorMessageManager.Instance != null)
+        {
+            ErrorMessageManager.Instance.ShowError(
+                "Não é possível jogar contra a mesma conta! Tente novamente."
+            );
+        }
+        else
+        {
+            Debug.LogError("ERRO: Não é possível jogar contra a mesma conta!");
+        }
     }
 
     private void CheckForGameStart()
@@ -182,6 +386,21 @@ public class SimplePunLauncher : MonoBehaviourPunCallbacks
         }
     }
 
+    public override void OnLeftRoom()
+    {
+        Debug.Log("Saímos da sala. A voltar ao lobby...");
+        IsInLobby = false;
+
+        // Se estamos no menu de matchmaking, tentar voltar ao lobby
+        if (SceneManager.GetActiveScene().name == "MatchmakingMenu")
+        {
+            if (PhotonNetwork.IsConnected)
+            {
+                StartCoroutine(JoinLobbyWhenReady());
+            }
+        }
+    }
+
     public override void OnDisconnected(DisconnectCause cause)
     {
         Debug.LogError($"Desconectado da Photon: {cause}");
@@ -191,6 +410,13 @@ public class SimplePunLauncher : MonoBehaviourPunCallbacks
     public override void OnPlayerLeftRoom(Photon.Realtime.Player otherPlayer)
     {
         Debug.Log($"Jogador {otherPlayer.NickName} saiu da sala.");
+
+        // Se estamos no menu de matchmaking e o outro jogador saiu, voltar ao lobby
+        if (SceneManager.GetActiveScene().name == "MatchmakingMenu")
+        {
+            Debug.Log("Outro jogador saiu durante o matchmaking. A voltar ao lobby...");
+            PhotonNetwork.LeaveRoom();
+        }
         // Aqui pode-se adicionar lógica para lidar com um jogador a desistir a meio do jogo.
     }
 }

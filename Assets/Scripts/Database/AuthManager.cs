@@ -1,3 +1,4 @@
+using System;
 using System.Collections;
 using System.IO;
 using System.Text;
@@ -9,6 +10,10 @@ using UnityEngine.SceneManagement;
 public class AuthManager : MonoBehaviour
 {
     public static AuthManager Instance { get; private set; }
+
+    public event Action OnStatsUpdated;
+
+    public event Action OnUserChanged;
 
     private string backendUrl = "https://tessellaction-backend.onrender.com";
     public static string AuthToken { get; private set; }
@@ -109,6 +114,10 @@ public class AuthManager : MonoBehaviour
                 GamesPlayed = response.gamesPlayed;
                 GamesWon = response.gamesWon;
 
+                OnStatsUpdated?.Invoke();
+
+                OnUserChanged?.Invoke();
+
                 SceneManager.LoadScene("MatchmakingMenu");
             }
             else
@@ -161,17 +170,15 @@ public class AuthManager : MonoBehaviour
             GlobalScore = response.globalScore;
             GamesPlayed = response.gamesPlayed;
             GamesWon = response.gamesWon;
-            Debug.Log("Login bem-sucedido!");
+
+            OnStatsUpdated?.Invoke();
+            OnUserChanged?.Invoke();
 
             SavedAuthData dataToSave = new SavedAuthData { token = AuthToken, userId = UserId };
             string json = JsonUtility.ToJson(dataToSave);
             string encryptedJson = EncryptDecrypt(json);
 
-            Debug.Log("A tentar guardar o ficheiro em: " + savePath);
-
             File.WriteAllText(savePath, encryptedJson);
-
-            Debug.Log("Dados de login guardados. A carregar a cena de matchmaking...");
             SceneManager.LoadScene("MatchmakingMenu");
         }
         else
@@ -191,7 +198,7 @@ public class AuthManager : MonoBehaviour
                 }
                 catch
                 {
-                    // Se não conseguir, usa a mensagem padrão. Não faz mal.
+                    // Se não conseguir, usa a mensagem padrão.
                 }
             }
 
@@ -213,8 +220,6 @@ public class AuthManager : MonoBehaviour
 
         if (request.result == UnityWebRequest.Result.Success)
         {
-            Debug.Log("Registo bem-sucedido! A fazer login automaticamente...");
-
             var response = JsonUtility.FromJson<LoginResponse>(request.downloadHandler.text);
             AuthToken = response.token;
             UserId = response.userId;
@@ -223,12 +228,14 @@ public class AuthManager : MonoBehaviour
             GamesPlayed = response.gamesPlayed;
             GamesWon = response.gamesWon;
 
+            OnStatsUpdated?.Invoke();
+            OnUserChanged?.Invoke();
+
             SavedAuthData dataToSave = new SavedAuthData { token = AuthToken, userId = UserId };
             string json = JsonUtility.ToJson(dataToSave);
             string encryptedJson = EncryptDecrypt(json);
             File.WriteAllText(savePath, encryptedJson);
 
-            Debug.Log("Dados de login guardados. A carregar a cena de matchmaking...");
             SceneManager.LoadScene("MatchmakingMenu");
         }
         else
@@ -259,28 +266,12 @@ public class AuthManager : MonoBehaviour
 
     public void EnviarResultadoDeJogo(string resultado, int pontos)
     {
-        Debug.Log(
-            $"[{(Application.isEditor ? "EDITOR" : "BUILD")}] EnviarResultadoDeJogo chamado: resultado={resultado}, pontos={pontos}"
-        );
-        Debug.Log($"AuthManager.Instance existe: {Instance != null}");
-        Debug.Log($"AuthToken existe: {!string.IsNullOrEmpty(AuthToken)}");
-        Debug.Log($"UserId existe: {!string.IsNullOrEmpty(UserId)}");
-
-        if (string.IsNullOrEmpty(AuthToken))
+        if (string.IsNullOrEmpty(AuthToken) || string.IsNullOrEmpty(UserId))
         {
-            Debug.LogError("AuthToken é null ou vazio! Não é possível enviar resultado do jogo.");
-            Debug.LogError($"Valores atuais - AuthToken: '{AuthToken}', UserId: '{UserId}'");
+            Debug.LogError("AuthToken ou UserId é null! Não é possível enviar resultado do jogo.");
             return;
         }
 
-        if (string.IsNullOrEmpty(UserId))
-        {
-            Debug.LogError("UserId é null ou vazio! Não é possível enviar resultado do jogo.");
-            Debug.LogError($"Valores atuais - AuthToken: '{AuthToken}', UserId: '{UserId}'");
-            return;
-        }
-
-        Debug.Log($"Iniciando corrotina para atualizar estatísticas...");
         StartCoroutine(AtualizarEstatisticas(resultado, pontos));
     }
 
@@ -317,6 +308,9 @@ public class AuthManager : MonoBehaviour
                 Debug.Log(
                     $"Stats locais atualizadas: Score={GlobalScore}, Played={GamesPlayed}, Won={GamesWon}"
                 );
+
+                Debug.Log("Disparando evento OnStatsUpdated");
+                OnStatsUpdated?.Invoke();
             }
             catch (System.Exception e)
             {
@@ -386,6 +380,9 @@ public class AuthManager : MonoBehaviour
         GlobalScore = 0;
         GamesPlayed = 0;
         GamesWon = 0;
+
+        // Notificar que o utilizador mudou (logout)
+        OnUserChanged?.Invoke();
 
         SceneManager.LoadScene("LoginMenu");
     }

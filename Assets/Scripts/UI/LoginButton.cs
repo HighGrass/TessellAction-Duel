@@ -25,6 +25,7 @@ public class LoginButton : MonoBehaviour
     [SerializeField]
     int minPasswordLength = 6;
 
+
     void Start() => button.interactable = false;
 
     void FixedUpdate()
