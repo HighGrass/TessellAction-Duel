@@ -411,7 +411,7 @@ public class SimplePunLauncher : MonoBehaviourPunCallbacks
         if (AuthManager.Instance != null)
         {
             // Jogador que ficou = vitória (+50 pontos)
-            AuthManager.Instance.EnviarResultadoDeJogo("win", 50);
+            AuthManager.Instance.SendGameResult("win", 50);
         }
 
         // Voltar ao menu de matchmaking após um pequeno delay

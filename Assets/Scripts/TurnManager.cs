@@ -118,13 +118,13 @@ public class TurnManager : MonoBehaviourPunCallbacks
             {
                 // Jogador que venceu ganha 50 pontos
                 Debug.Log("Enviando resultado: WIN com 50 pontos");
-                AuthManager.Instance.EnviarResultadoDeJogo("win", 50);
+                AuthManager.Instance.SendGameResult("win", 50);
             }
             else
             {
                 // Jogador que perdeu perde 25 pontos
                 Debug.Log("Enviando resultado: LOSE com -25 pontos");
-                AuthManager.Instance.EnviarResultadoDeJogo("lose", -25);
+                AuthManager.Instance.SendGameResult("lose", -25);
             }
         }
         else

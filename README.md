@@ -207,7 +207,7 @@ public override void OnPlayerLeftRoom(Photon.Realtime.Player otherPlayer)
     if (SceneManager.GetActiveScene().name == "GameScene")
     {
         // Remaining player gets automatic win
-        AuthManager.Instance.EnviarResultadoDeJogo("win", 50);
+        AuthManager.Instance.SendGameResult("win", 50);
         StartCoroutine(ReturnToMatchmakingAfterDisconnect());
     }
 }
@@ -447,7 +447,7 @@ private void HandlePlayerDisconnectedDuringGame()
 {
     if (AuthManager.Instance != null)
     {
-        AuthManager.Instance.EnviarResultadoDeJogo("win", 50);
+        AuthManager.Instance.SendGameResult("win", 50);
     }
     StartCoroutine(ReturnToMatchmakingAfterDisconnect());
 }

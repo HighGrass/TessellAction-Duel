@@ -264,7 +264,7 @@ public class AuthManager : MonoBehaviour
         }
     }
 
-    public void EnviarResultadoDeJogo(string resultado, int pontos)
+    public void SendGameResult(string resultado, int pontos)
     {
         if (string.IsNullOrEmpty(AuthToken) || string.IsNullOrEmpty(UserId))
         {
